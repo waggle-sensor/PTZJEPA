@@ -1,0 +1,23 @@
+name: "ptz-sampler"
+description: "This plugin samples images from a ptz camera"
+keywords: "ptz, samples"
+authors: "Dario Dematties <ddematties@anl.gov>"
+collaborators: "Bhupendra Ashokrao Raut <bhupendra.raut@northwestern.edu>"
+funding: ""
+license: ""
+homepage: "https://github.com/waggle-sensor/ptz-sampler/blob/master/README.md"
+source:
+  architectures:
+    - "linux/amd64"
+    - "linux/arm64"
+inputs:
+  - id: "iterations"
+    type: "int"
+  - id: "movements"
+    type: "int"
+  - id: "username"
+    type: "string"
+  - id: "password"
+    type: "string"
+  - id: "cameraip"
+    type: "string"
