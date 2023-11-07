@@ -74,8 +74,29 @@ def publish_images():
         plugin.upload_file(ct + '_images.tar')
 
 
+def collect_images():
+    directory = './collected_imgs'
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+    # run tar -cvf images.tar ./imgs
+    tar_images('images.tar', './imgs')
+    files = glob.glob('./imgs/*.jpg', recursive=True)
+    for f in files:
+        try:
+            os.remove(f)
+        except OSError as e:
+            print("Error: %s : %s" % (f, e.strerror))
+
+    ct = str(datetime.datetime.now())
+    os.rename('images.tar', os.path.join(directory, ct + '_images.tar'))
+
+
+
 def main():
-    parser = argparse.ArgumentParser("PTZ sampler")
+    parser = argparse.ArgumentParser("PTZ JEPA")
+
+    # PTZ sampler
     parser.add_argument("-cb", "--camerabrand",
                         help="An integer for each accepted camera brand (default=0). 0 is Hanwha, 1 is Axis.", type=int,
                         default=0)
@@ -94,6 +115,12 @@ def main():
     parser.add_argument("-ip", "--cameraip",
                         help="The ip of the PTZ camera.",
                         type=str, default='')
+
+    # Joint Embedding Predictive Architecture (JEPA)
+    parser.add_argument("-fn", "--fname", type=str,
+                        help="name of config file to load",
+                        default='configs/in1k_vith14_ep300.yaml')
+
     args = parser.parse_args()
 
     if args.camerabrand==0:
@@ -105,6 +132,9 @@ def main():
         #from source import onvif_control as sunapi_control
     else:
         print('Not known camera brand number: ', args.camerabrand)
+
+
+    from source.run_jepa import run as run_jepa
 
 
 
@@ -169,9 +199,9 @@ def main():
 
             grab_image(camera=Camera1, args=args)
 
-        publish_images()
+        #publish_images()
+        collect_images()
         os.rmdir('./imgs')
-
 
 
     if args.camerabrand==0:
@@ -181,6 +211,8 @@ def main():
         Camera1.absolute_move(1, 1, 1)
         time.sleep(1)
 
+
+    run_jepa(args.fname, 'train')
 
 
     print('DONE!')
