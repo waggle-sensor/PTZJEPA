@@ -2,4 +2,5 @@ numpy
 requests
 bs4
 Pillow
+pyyaml
 opencv-python
