@@ -7,6 +7,8 @@ import yaml
 import pprint
 import torch
 
+from torch.utils.data import DataLoader
+
 from source.utils.logging import (
     CSVLogger,
     gpu_timer,
@@ -17,6 +19,8 @@ from source.helper import (
     load_checkpoint,
     init_model,
     init_opt)
+
+from source.datasets.ptz_dataset import PTZImageDataset
 
 def train(args, resume_preempt=False):
     # ----------------------------------------------------------------------- #
@@ -121,6 +125,20 @@ def train(args, resume_preempt=False):
     target_encoder = copy.deepcopy(encoder)
 
 
+
+
+    # -- init data-loader
+    data = PTZImageDataset('./labels', './collected_imgs')
+    print('>>>>>>>>>>>>>>>>>>>------------------------')
+    print('>>>>>>>>>>>>>>>>>>>------------------------')
+    print('>>>>>>>>>>>>>>>>>>>------------------------')
+    #data.print_path()
+    print('>>>>>>>>>>>>>>>>>>>------------------------')
+    print('>>>>>>>>>>>>>>>>>>>------------------------')
+    print('>>>>>>>>>>>>>>>>>>>------------------------')
+    dataloader = DataLoader(data, batch_size=batch_size, shuffle=False)
+    ipe = len(dataloader)
+    print(ipe)
 
 
 
