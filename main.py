@@ -5,6 +5,7 @@ import time
 import datetime
 import os
 import glob
+import csv
 import os.path
 import traceback
 import subprocess
@@ -12,6 +13,7 @@ import subprocess
 import argparse
 
 import numpy as np
+import pandas as pd
 
 from waggle.plugin import Plugin
 
@@ -80,16 +82,33 @@ def collect_images():
         os.makedirs(directory)
 
     # run tar -cvf images.tar ./imgs
-    tar_images('images.tar', './imgs')
+    # tar_images('images.tar', './imgs')
     files = glob.glob('./imgs/*.jpg', recursive=True)
     for f in files:
         try:
-            os.remove(f)
+            os.rename(f, os.path.join(directory, os.path.basename(f)))
+            # os.remove(f)
         except OSError as e:
             print("Error: %s : %s" % (f, e.strerror))
 
-    ct = str(datetime.datetime.now())
-    os.rename('images.tar', os.path.join(directory, ct + '_images.tar'))
+    # ct = str(datetime.datetime.now())
+    # os.rename('images.tar', os.path.join(directory, ct + '_images.tar'))
+
+def prepare_images():
+    labels = []
+    files = glob.glob('./collected_imgs/*.jpg', recursive=True)
+    for f in files:
+        try:
+            labels.append(os.path.splitext(os.path.basename(f))[0])
+        except OSError as e:
+            print("Error: %s : %s" % (f, e.strerror))
+
+    df = pd.DataFrame(labels)
+    df.to_csv('./labels', header=None, index=False)
+
+
+
+
 
 
 
@@ -212,6 +231,7 @@ def main():
         time.sleep(1)
 
 
+    prepare_images()
     run_jepa(args.fname, 'train')
 
 

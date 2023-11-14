@@ -16,7 +16,7 @@ from source.utils.tensors import (
     trunc_normal_,
     repeat_interleave_batch
 )
-from source.masks.utils import apply_masks
+#from source.masks.utils import apply_masks
 
 
 def get_2d_sincos_pos_embed(embed_dim, grid_size, cls_token=False):
