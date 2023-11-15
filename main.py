@@ -155,7 +155,7 @@ def main():
 
     from source.run_jepa import run as run_jepa
 
-
+    os.environ['CUDA_VISIBLE_DEVICES'] = str(0)
 
     iterations = args.iterations
     number_of_commands = args.movements
