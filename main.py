@@ -15,6 +15,8 @@ import argparse
 import numpy as np
 import pandas as pd
 
+from PIL import Image
+
 from waggle.plugin import Plugin
 
 def set_random_position(camera, args):
@@ -81,31 +83,29 @@ def collect_images():
     if not os.path.exists(directory):
         os.makedirs(directory)
 
-    # run tar -cvf images.tar ./imgs
-    # tar_images('images.tar', './imgs')
     files = glob.glob('./imgs/*.jpg', recursive=True)
     for f in files:
         try:
             os.rename(f, os.path.join(directory, os.path.basename(f)))
-            # os.remove(f)
         except OSError as e:
             print("Error: %s : %s" % (f, e.strerror))
 
-    # ct = str(datetime.datetime.now())
-    # os.rename('images.tar', os.path.join(directory, ct + '_images.tar'))
 
 def prepare_images():
     labels = []
     files = glob.glob('./collected_imgs/*.jpg', recursive=True)
     for f in files:
         try:
+            image = Image.open(f)
+            image.save(f)
             labels.append(os.path.splitext(os.path.basename(f))[0])
         except OSError as e:
+            os.remove(f)
             print("Error: %s : %s" % (f, e.strerror))
 
     df = pd.DataFrame(labels)
     df.to_csv('./labels', header=None, index=False)
-
+    print('Number of labels: ', df.size)
 
 
 
