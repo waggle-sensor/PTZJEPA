@@ -22,7 +22,7 @@ from source.helper import (
 
 from source.datasets.ptz_dataset import PTZImageDataset
 
-def train(args, resume_preempt=False):
+def train(args, logger=None, resume_preempt=False):
     # ----------------------------------------------------------------------- #
     #  PASSED IN PARAMS FROM CONFIG FILE
     # ----------------------------------------------------------------------- #
@@ -129,17 +129,85 @@ def train(args, resume_preempt=False):
 
     # -- init data-loader
     data = PTZImageDataset('./labels', './collected_imgs')
-    print('>>>>>>>>>>>>>>>>>>>------------------------')
-    print('>>>>>>>>>>>>>>>>>>>------------------------')
-    print('>>>>>>>>>>>>>>>>>>>------------------------')
-    #data.print_path()
-    print('>>>>>>>>>>>>>>>>>>>------------------------')
-    print('>>>>>>>>>>>>>>>>>>>------------------------')
-    print('>>>>>>>>>>>>>>>>>>>------------------------')
     dataloader = DataLoader(data, batch_size=batch_size, shuffle=False)
     ipe = len(dataloader)
-    print(ipe)
 
+
+
+    # -- init optimizer and scheduler
+    optimizer, scaler, scheduler, wd_scheduler = init_opt(
+        encoder=encoder,
+        predictor=predictor,
+        wd=wd,
+        final_wd=final_wd,
+        start_lr=start_lr,
+        ref_lr=lr,
+        final_lr=final_lr,
+        iterations_per_epoch=ipe,
+        warmup=warmup,
+        num_epochs=num_epochs,
+        ipe_scale=ipe_scale,
+        use_bfloat16=use_bfloat16)
+
+
+    for p in target_encoder.parameters():
+        p.requires_grad = False
+
+
+    # -- momentum schedule
+    momentum_scheduler = (ema[0] + i*(ema[1]-ema[0])/(ipe*num_epochs*ipe_scale)
+                          for i in range(int(ipe*num_epochs*ipe_scale)+1))
+
+
+    start_epoch = 0
+    # -- load training checkpoint
+    if load_model:
+        encoder, predictor, target_encoder, optimizer, scaler, start_epoch = load_checkpoint(
+            device=device,
+            r_path=load_path,
+            encoder=encoder,
+            predictor=predictor,
+            target_encoder=target_encoder,
+            opt=optimizer,
+            scaler=scaler)
+        for _ in range(start_epoch*ipe):
+            scheduler.step()
+            wd_scheduler.step()
+            next(momentum_scheduler)
+            mask_collator.step()
+
+
+    def save_checkpoint(epoch):
+        save_dict = {
+            'encoder': encoder.state_dict(),
+            'predictor': predictor.state_dict(),
+            'target_encoder': target_encoder.state_dict(),
+            'opt': optimizer.state_dict(),
+            'scaler': None if scaler is None else scaler.state_dict(),
+            'epoch': epoch,
+            'loss': loss_meter.avg,
+            'batch_size': batch_size,
+            'world_size': world_size,
+            'lr': lr
+        }
+        if rank == 0:
+            torch.save(save_dict, latest_path)
+            if (epoch + 1) % checkpoint_freq == 0:
+                torch.save(save_dict, save_path.format(epoch=f'{epoch + 1}'))
+
+
+
+
+    # -- TRAINING LOOP
+    for epoch in range(start_epoch, num_epochs):
+        logger.info('Epoch %d' % (epoch + 1))
+
+        loss_meter = AverageMeter()
+        time_meter = AverageMeter()
+
+        for idx, (img, labl) in enumerate(dataloader):
+            print(idx)
+            print(labl)
 
 
 
@@ -164,7 +232,7 @@ def run(fname, mode):
         pp.pprint(params)
 
     if mode=='train':
-        train(params)
+        train(params, logger=logger)
     else:
         print(f"Unexpected mode {mode}")
         raise
