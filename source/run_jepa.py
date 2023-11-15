@@ -196,6 +196,56 @@ def train(args, logger=None, resume_preempt=False):
                 torch.save(save_dict, save_path.format(epoch=f'{epoch + 1}'))
 
 
+    def get_position_from_label(labels):
+        possitions = []
+        for label in labels:
+            poss = label.split('_')[0].split(',')
+            possitions.append([float(poss[0]), float(poss[1]), float(poss[2])])
+
+        return torch.tensor(possitions)
+
+
+    def arrage_inputs(images, possitions):
+        context_imgs = []
+        target_imgs = []
+        context_poss = []
+        target_poss = []
+        for context_idx in range(possitions.shape[0]):
+            for target_idx in range(possitions.shape[0]):
+                context_imgs.append(images[context_idx].unsqueeze(0))
+                context_poss.append(possitions[context_idx].unsqueeze(0))
+                target_imgs.append(images[target_idx].unsqueeze(0))
+                target_poss.append(possitions[target_idx].unsqueeze(0))
+
+
+        auxiliary = torch.Tensor(len(context_imgs), context_imgs[0].shape[0], 
+                                                    context_imgs[0].shape[1],
+                                                    context_imgs[0].shape[2],
+                                                    context_imgs[0].shape[3])
+        torch.cat(context_imgs, out=auxiliary.to(device, non_blocking=True))
+        auxiliary = auxiliary.squeeze(1)
+        context_imgs = auxiliary
+
+        auxiliary = torch.Tensor(len(context_poss), context_poss[0].shape[0], context_poss[0].shape[1])
+        torch.cat(context_poss, out=auxiliary.to(device, non_blocking=True))
+        auxiliary = auxiliary.squeeze(1)
+        context_poss = auxiliary
+
+
+        auxiliary = torch.Tensor(len(target_imgs), target_imgs[0].shape[0], 
+                                                    target_imgs[0].shape[1],
+                                                    target_imgs[0].shape[2],
+                                                    target_imgs[0].shape[3])
+        torch.cat(target_imgs, out=auxiliary.to(device, non_blocking=True))
+        auxiliary = auxiliary.squeeze(1)
+        target_imgs = auxiliary
+
+        auxiliary = torch.Tensor(len(target_poss), target_poss[0].shape[0], target_poss[0].shape[1])
+        torch.cat(target_poss, out=auxiliary.to(device, non_blocking=True))
+        auxiliary = auxiliary.squeeze(1)
+        target_poss = auxiliary
+
+        return context_imgs, context_poss, target_imgs, target_poss
 
 
     # -- TRAINING LOOP
@@ -205,10 +255,12 @@ def train(args, logger=None, resume_preempt=False):
         loss_meter = AverageMeter()
         time_meter = AverageMeter()
 
-        for idx, (img, labl) in enumerate(dataloader):
-            print(idx)
-            print(labl)
-
+        for idx, (imgs, labls) in enumerate(dataloader):
+            poss = get_position_from_label(labls)
+            imgs = imgs.to(device, non_blocking=True)
+            poss = poss.to(device, non_blocking=True)
+            
+            context_imgs, context_poss, target_imgs, target_poss = arrage_inputs(imgs, poss)
 
 
 
