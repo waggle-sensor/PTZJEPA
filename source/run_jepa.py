@@ -6,6 +6,7 @@ import logging
 import yaml
 import pprint
 import torch
+import torch.nn.functional as F
 
 from torch.utils.data import DataLoader
 
@@ -19,6 +20,7 @@ from source.helper import (
     load_checkpoint,
     init_model,
     init_opt)
+from source.transforms import make_transforms
 
 from source.datasets.ptz_dataset import PTZImageDataset
 
@@ -126,9 +128,18 @@ def train(args, logger=None, resume_preempt=False):
 
 
 
+    # -- make data transforms
+    transform = make_transforms(
+        crop_size=crop_size,
+        crop_scale=crop_scale,
+        gaussian_blur=use_gaussian_blur,
+        horizontal_flip=use_horizontal_flip,
+        color_distortion=use_color_distortion,
+        color_jitter=color_jitter)
+
 
     # -- init data-loader
-    data = PTZImageDataset('./labels', './collected_imgs')
+    data = PTZImageDataset('./labels', './collected_imgs', transform=transform)
     dataloader = DataLoader(data, batch_size=batch_size, shuffle=False)
     ipe = len(dataloader)
 
@@ -245,7 +256,27 @@ def train(args, logger=None, resume_preempt=False):
         auxiliary = auxiliary.squeeze(1)
         target_poss = auxiliary
 
-        return context_imgs, context_poss, target_imgs, target_poss
+        return context_imgs.to(device), context_poss.to(device), target_imgs.to(device), target_poss.to(device)
+ 
+
+
+    def train_step(inputs):
+        _new_lr = scheduler.step()
+        _new_wd = wd_scheduler.step()
+        # --
+
+        h = forward_target(inputs[2])
+
+
+
+
+    def forward_target(images):
+        with torch.no_grad():
+            h = target_encoder(images)
+            h = F.layer_norm(h, (h.size(-1),))  # normalize over feature-dim
+            return h
+
+
 
 
     # -- TRAINING LOOP
@@ -261,6 +292,8 @@ def train(args, logger=None, resume_preempt=False):
             poss = poss.to(device, non_blocking=True)
             
             context_imgs, context_poss, target_imgs, target_poss = arrage_inputs(imgs, poss)
+
+            train_step([context_imgs, context_poss, target_imgs, target_poss])
 
 
 

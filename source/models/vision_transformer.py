@@ -16,7 +16,6 @@ from source.utils.tensors import (
     trunc_normal_,
     repeat_interleave_batch
 )
-#from source.masks.utils import apply_masks
 
 
 def get_2d_sincos_pos_embed(embed_dim, grid_size, cls_token=False):
@@ -398,11 +397,7 @@ class VisionTransformer(nn.Module):
             if m.bias is not None:
                 nn.init.constant_(m.bias, 0)
 
-    def forward(self, x, masks=None):
-        if masks is not None:
-            if not isinstance(masks, list):
-                masks = [masks]
-
+    def forward(self, x):
         # -- patchify x
         x = self.patch_embed(x)
         B, N, D = x.shape
@@ -410,10 +405,6 @@ class VisionTransformer(nn.Module):
         # -- add positional embedding to x
         pos_embed = self.interpolate_pos_encoding(x, self.pos_embed)
         x = x + pos_embed
-
-        # -- mask x
-        if masks is not None:
-            x = apply_masks(x, masks)
 
         # -- fwd prop
         for i, blk in enumerate(self.blocks):
