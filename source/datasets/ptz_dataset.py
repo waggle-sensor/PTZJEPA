@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 from torchvision.io import read_image
+from PIL import Image 
 from torch.utils.data import Dataset
 
 class PTZImageDataset(Dataset):
@@ -16,7 +17,8 @@ class PTZImageDataset(Dataset):
     def __getitem__(self, idx):
         #img_path = os.path.join(self.img_dir, self.img_labels[idx,0] + '.jpg')
         img_path = os.path.join(self.img_dir, self.img_labels[0][idx] + '.jpg')
-        image = read_image(img_path)
+        image = Image.open(img_path)
+        #image = read_image(img_path)
         #label = self.img_labels[idx,0]
         label = self.img_labels[0][idx]
         if self.transform:
