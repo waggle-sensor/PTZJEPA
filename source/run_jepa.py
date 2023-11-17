@@ -265,10 +265,25 @@ def train(args, logger=None, resume_preempt=False):
         _new_wd = wd_scheduler.step()
         # --
 
+        # Step 1. Forward
         h = forward_target(inputs[2])
+        z = forward_context(inputs[0], inputs[1], inputs[3])
+        loss = loss_fn(z, h)
+
+        # Step 2. Backward & step
+        loss.backward()
+        optimizer.step()
+        grad_stats = grad_logger(encoder.named_parameters())
+        optimizer.zero_grad()
 
 
+        # Step 3. momentum update of target encoder
+        with torch.no_grad():
+            m = next(momentum_scheduler)
+            for param_q, param_k in zip(encoder.parameters(), target_encoder.parameters()):
+                param_k.data.mul_(m).add_((1.-m) * param_q.detach().data)
 
+        return (float(loss), _new_lr, _new_wd, grad_stats)
 
     def forward_target(images):
         with torch.no_grad():
@@ -276,7 +291,15 @@ def train(args, logger=None, resume_preempt=False):
             h = F.layer_norm(h, (h.size(-1),))  # normalize over feature-dim
             return h
 
+    def forward_context(images, possition1, possition2):
+        z = encoder(images)
+        z = predictor(z, possition1, possition2) 
+        return z
 
+
+    def loss_fn(z, h):
+        loss = F.smooth_l1_loss(z, h)
+        return loss
 
 
     # -- TRAINING LOOP
@@ -293,7 +316,9 @@ def train(args, logger=None, resume_preempt=False):
             
             context_imgs, context_poss, target_imgs, target_poss = arrage_inputs(imgs, poss)
 
-            train_step([context_imgs, context_poss, target_imgs, target_poss])
+            (loss, _new_lr, _new_wd, grad_stats), etime = gpu_timer(train_step, arguments=[context_imgs, context_poss, target_imgs, target_poss])
+            loss_meter.update(loss)
+            time_meter.update(etime)
 
 
 

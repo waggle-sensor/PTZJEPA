@@ -237,6 +237,8 @@ class VisionTransformerPredictor(nn.Module):
     ):
         super().__init__()
         self.predictor_embed = nn.Linear(embed_dim, predictor_embed_dim, bias=True)
+        self.ptz_poss1_embed = nn.Linear(3, predictor_embed_dim, bias=True)
+        self.ptz_poss2_embed = nn.Linear(3, predictor_embed_dim, bias=True)
         self.mask_token = nn.Parameter(torch.zeros(1, 1, predictor_embed_dim))
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # stochastic depth decay rule
         # --
@@ -281,37 +283,33 @@ class VisionTransformerPredictor(nn.Module):
             if m.bias is not None:
                 nn.init.constant_(m.bias, 0)
 
-    def forward(self, x, masks_x, masks):
-        assert (masks is not None) and (masks_x is not None), 'Cannot run predictor without mask indices'
-
-        if not isinstance(masks_x, list):
-            masks_x = [masks_x]
-
-        if not isinstance(masks, list):
-            masks = [masks]
-
-        # -- Batch Size
-        B = len(x) // len(masks_x)
+    def forward(self, x, poss_x, poss):
+        assert (poss is not None) and (poss_x is not None), 'Cannot run predictor without mask indices'
+        B = x.shape[0]
 
         # -- map from encoder-dim to pedictor-dim
         x = self.predictor_embed(x)
 
         # -- add positional embedding to x tokens
+        # -- affecting them by the first ptz position
         x_pos_embed = self.predictor_pos_embed.repeat(B, 1, 1)
-        x += apply_masks(x_pos_embed, masks_x)
+
+        pred_ptz_poss1_embeds = self.ptz_poss1_embed(poss_x)
+        pred_ptz_poss1_tokens = pred_ptz_poss1_embeds.repeat(x_pos_embed.size(1), 1, 1)
+        pred_ptz_poss1_tokens = pred_ptz_poss1_tokens.permute(1, 0, 2)
+
+        x += pred_ptz_poss1_tokens
+        x += x_pos_embed
 
         _, N_ctxt, D = x.shape
 
-        # -- concat mask tokens to x
+        # -- concat second ptz position tokens to x
         pos_embs = self.predictor_pos_embed.repeat(B, 1, 1)
-        pos_embs = apply_masks(pos_embs, masks)
-        pos_embs = repeat_interleave_batch(pos_embs, B, repeat=len(masks_x))
-        # --
-        pred_tokens = self.mask_token.repeat(pos_embs.size(0), pos_embs.size(1), 1)
-        # --
-        pred_tokens += pos_embs
-        x = x.repeat(len(masks), 1, 1)
-        x = torch.cat([x, pred_tokens], dim=1)
+
+        pred_ptz_poss2_embeds = self.ptz_poss2_embed(poss)
+        pred_ptz_poss2_tokens = pred_ptz_poss2_embeds.repeat(pos_embs.size(1), 1, 1)
+        pred_ptz_poss2_tokens = pred_ptz_poss2_tokens.permute(1, 0, 2)
+        x = torch.cat([x, pred_ptz_poss2_tokens], dim=1)
 
         # -- fwd prop
         for blk in self.predictor_blocks:
