@@ -111,37 +111,7 @@ def prepare_images():
 
 
 
-
-def main():
-    parser = argparse.ArgumentParser("PTZ JEPA")
-
-    # PTZ sampler
-    parser.add_argument("-cb", "--camerabrand",
-                        help="An integer for each accepted camera brand (default=0). 0 is Hanwha, 1 is Axis.", type=int,
-                        default=0)
-    parser.add_argument("-it", "--iterations",
-                        help="An integer with the number of iterations (PTZ rounds) to be run (default=10).", type=int,
-                        default=10)
-    parser.add_argument("-mv", "--movements",
-                        help="An integer with the number of movements in each PTZ round to be run (default=10).",
-                        type=int, default=10)
-    parser.add_argument("-un", "--username",
-                        help="The username of the PTZ camera.",
-                        type=str, default='')
-    parser.add_argument("-pw", "--password",
-                        help="The password of the PTZ camera.",
-                        type=str, default='')
-    parser.add_argument("-ip", "--cameraip",
-                        help="The ip of the PTZ camera.",
-                        type=str, default='')
-
-    # Joint Embedding Predictive Architecture (JEPA)
-    parser.add_argument("-fn", "--fname", type=str,
-                        help="name of config file to load",
-                        default='configs/in1k_vith14_ep300.yaml')
-
-    args = parser.parse_args()
-
+def operate_ptz(args):
     if args.camerabrand==0:
         print('Importing Hanwha')
         from source import sunapi_control as sunapi_control
@@ -151,11 +121,6 @@ def main():
         #from source import onvif_control as sunapi_control
     else:
         print('Not known camera brand number: ', args.camerabrand)
-
-
-    from source.run_jepa import run as run_jepa
-
-    os.environ['CUDA_VISIBLE_DEVICES'] = str(0)
 
     iterations = args.iterations
     number_of_commands = args.movements
@@ -230,15 +195,51 @@ def main():
         Camera1.absolute_move(1, 1, 1)
         time.sleep(1)
 
+    with Plugin() as plugin:
+        plugin.publish('finishing.image.collection', str(datetime.datetime.now()))
 
+
+
+
+def main():
+    parser = argparse.ArgumentParser("PTZ JEPA")
+
+    # PTZ sampler
+    parser.add_argument("-cb", "--camerabrand",
+                        help="An integer for each accepted camera brand (default=0). 0 is Hanwha, 1 is Axis.", type=int,
+                        default=0)
+    parser.add_argument("-it", "--iterations",
+                        help="An integer with the number of iterations (PTZ rounds) to be run (default=10).", type=int,
+                        default=10)
+    parser.add_argument("-mv", "--movements",
+                        help="An integer with the number of movements in each PTZ round to be run (default=10).",
+                        type=int, default=10)
+    parser.add_argument("-un", "--username",
+                        help="The username of the PTZ camera.",
+                        type=str, default='')
+    parser.add_argument("-pw", "--password",
+                        help="The password of the PTZ camera.",
+                        type=str, default='')
+    parser.add_argument("-ip", "--cameraip",
+                        help="The ip of the PTZ camera.",
+                        type=str, default='')
+
+    # Joint Embedding Predictive Architecture (JEPA)
+    parser.add_argument("-fn", "--fname", type=str,
+                        help="name of config file to load",
+                        default='configs/in1k_vith14_ep300.yaml')
+
+    args = parser.parse_args()
+
+    from source.run_jepa import run as run_jepa
+
+    os.environ['CUDA_VISIBLE_DEVICES'] = str(0)
+
+    operate_ptz(args)
     prepare_images()
     run_jepa(args.fname, 'train')
 
-
     print('DONE!')
-
-    with Plugin() as plugin:
-        plugin.publish('finishing.image.collection', str(datetime.datetime.now()))
 
 
 if __name__ == "__main__":
