@@ -29,7 +29,7 @@ from source.datasets.ptz_dataset import PTZImageDataset
 # --
 #log_timings = True
 log_freq = 10
-checkpoint_freq = 50
+checkpoint_freq = 5
 # --
 
 def train(args, logger=None, resume_preempt=False):
@@ -206,13 +206,11 @@ def train(args, logger=None, resume_preempt=False):
             'epoch': epoch,
             'loss': loss_meter.avg,
             'batch_size': batch_size,
-            'world_size': world_size,
             'lr': lr
         }
-        if rank == 0:
-            torch.save(save_dict, latest_path)
-            if (epoch + 1) % checkpoint_freq == 0:
-                torch.save(save_dict, save_path.format(epoch=f'{epoch + 1}'))
+        torch.save(save_dict, latest_path)
+        if (epoch + 1) % checkpoint_freq == 0:
+            torch.save(save_dict, save_path.format(epoch=f'{epoch + 1}'))
 
 
     def get_position_from_label(labels):
@@ -359,6 +357,9 @@ def train(args, logger=None, resume_preempt=False):
 
             assert not np.isnan(loss), 'loss is nan'
 
+        # -- Save Checkpoint after every epoch
+        logger.info('avg. loss %.3f' % loss_meter.avg)
+        save_checkpoint(epoch+1)
 
 
 
