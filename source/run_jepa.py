@@ -10,6 +10,8 @@ import torch.nn.functional as F
 
 from torch.utils.data import DataLoader
 
+import numpy as np
+
 from source.utils.logging import (
     CSVLogger,
     gpu_timer,
@@ -23,6 +25,12 @@ from source.helper import (
 from source.transforms import make_transforms
 
 from source.datasets.ptz_dataset import PTZImageDataset
+
+# --
+#log_timings = True
+log_freq = 10
+checkpoint_freq = 50
+# --
 
 def train(args, logger=None, resume_preempt=False):
     # ----------------------------------------------------------------------- #
@@ -229,32 +237,30 @@ def train(args, logger=None, resume_preempt=False):
                 target_poss.append(possitions[target_idx].unsqueeze(0))
 
 
-        auxiliary = torch.Tensor(len(context_imgs), context_imgs[0].shape[0], 
-                                                    context_imgs[0].shape[1],
+        auxiliary = torch.Tensor(len(context_imgs), context_imgs[0].shape[1],
                                                     context_imgs[0].shape[2],
-                                                    context_imgs[0].shape[3])
-        torch.cat(context_imgs, out=auxiliary.to(device, non_blocking=True))
+                                                    context_imgs[0].shape[3]).to(device, non_blocking=True)
+        torch.cat(context_imgs, out=auxiliary)
         auxiliary = auxiliary.squeeze(1)
-        context_imgs = auxiliary
+        context_imgs = auxiliary.detach().clone()
 
-        auxiliary = torch.Tensor(len(context_poss), context_poss[0].shape[0], context_poss[0].shape[1])
-        torch.cat(context_poss, out=auxiliary.to(device, non_blocking=True))
+        auxiliary = torch.Tensor(len(context_poss), context_poss[0].shape[1]).to(device, non_blocking=True)
+        torch.cat(context_poss, out=auxiliary)
         auxiliary = auxiliary.squeeze(1)
-        context_poss = auxiliary
+        context_poss = auxiliary.detach().clone()
 
 
-        auxiliary = torch.Tensor(len(target_imgs), target_imgs[0].shape[0], 
-                                                    target_imgs[0].shape[1],
-                                                    target_imgs[0].shape[2],
-                                                    target_imgs[0].shape[3])
-        torch.cat(target_imgs, out=auxiliary.to(device, non_blocking=True))
+        auxiliary = torch.Tensor(len(target_imgs), target_imgs[0].shape[1],
+                                                   target_imgs[0].shape[2],
+                                                   target_imgs[0].shape[3]).to(device, non_blocking=True)
+        torch.cat(target_imgs, out=auxiliary)
         auxiliary = auxiliary.squeeze(1)
-        target_imgs = auxiliary
+        target_imgs = auxiliary.detach().clone()
 
-        auxiliary = torch.Tensor(len(target_poss), target_poss[0].shape[0], target_poss[0].shape[1])
-        torch.cat(target_poss, out=auxiliary.to(device, non_blocking=True))
+        auxiliary = torch.Tensor(len(target_poss), target_poss[0].shape[1]).to(device, non_blocking=True)
+        torch.cat(target_poss, out=auxiliary)
         auxiliary = auxiliary.squeeze(1)
-        target_poss = auxiliary
+        target_poss = auxiliary.detach().clone()
 
         return context_imgs.to(device), context_poss.to(device), target_imgs.to(device), target_poss.to(device)
  
@@ -302,14 +308,44 @@ def train(args, logger=None, resume_preempt=False):
         return loss
 
 
+    # -- Logging
+    def log_stats(itr, epoch, loss, etime):
+        csv_logger.log(epoch + 1, itr, loss, etime)
+        if (itr % log_freq == 0) or np.isnan(loss) or np.isinf(loss):
+            logger.info('[%d, %5d] loss: %.3f '
+                        '[wd: %.2e] [lr: %.2e] '
+                        '[mem: %.2e] '
+                        '(%.1f ms)'
+                        % (epoch + 1, itr,
+                           loss_meter.avg,
+                           _new_wd,
+                           _new_lr,
+                           torch.cuda.max_memory_allocated() / 1024.**2,
+                           time_meter.avg))
+
+            if grad_stats is not None:
+                logger.info('[%d, %5d] grad_stats: [%.2e %.2e] (%.2e, %.2e)'
+                            % (epoch + 1, itr,
+                               grad_stats.first_layer,
+                               grad_stats.last_layer,
+                               grad_stats.min,
+                               grad_stats.max))
+
+
+
+
+
     # -- TRAINING LOOP
     for epoch in range(start_epoch, num_epochs):
         logger.info('Epoch %d' % (epoch + 1))
+        print('--------------->>>>>>>>>>>>>>>> Epoch: ', epoch)
+        if epoch > 0:
+            print('loss: ', loss)
 
         loss_meter = AverageMeter()
         time_meter = AverageMeter()
 
-        for idx, (imgs, labls) in enumerate(dataloader):
+        for itr, (imgs, labls) in enumerate(dataloader):
             poss = get_position_from_label(labls)
             imgs = imgs.to(device, non_blocking=True)
             poss = poss.to(device, non_blocking=True)
@@ -319,6 +355,9 @@ def train(args, logger=None, resume_preempt=False):
             (loss, _new_lr, _new_wd, grad_stats), etime = gpu_timer(train_step, arguments=[context_imgs, context_poss, target_imgs, target_poss])
             loss_meter.update(loss)
             time_meter.update(etime)
+            log_stats(itr, epoch, loss, etime)
+
+            assert not np.isnan(loss), 'loss is nan'
 
 
 
