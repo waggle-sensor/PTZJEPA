@@ -199,6 +199,12 @@ def operate_ptz(args):
         plugin.publish('finishing.image.collection', str(datetime.datetime.now()))
 
 
+def pretraining_wrapper(arguments):
+    training_complete = False
+    while not training_complete:
+        operate_ptz(arguments)
+        prepare_images()
+        training_complete = run_jepa(arguments.fname, 'train')
 
 
 def main():
@@ -227,7 +233,7 @@ def main():
     # Joint Embedding Predictive Architecture (JEPA)
     parser.add_argument("-fn", "--fname", type=str,
                         help="name of config file to load",
-                        default='configs/in1k_vith14_ep300.yaml')
+                        default='/percistence/configs/in1k_vith14_ep300.yaml')
 
     args = parser.parse_args()
 
@@ -235,9 +241,14 @@ def main():
 
     os.environ['CUDA_VISIBLE_DEVICES'] = str(0)
 
-    operate_ptz(args)
-    prepare_images()
-    run_jepa(args.fname, 'train')
+    pretraining_wrapper(args)
+
+    os.chmod('/percistence/experiment_logs', 0o777)
+    os.chmod('/percistence/experiment_logs/vith14.224-bs.2048-ep.300', 0o777)
+    filelist = os.listdir('/percistence/experiment_logs/vith14.224-bs.2048-ep.300/')
+    for filename in filelist:
+        print(os.path.join('/percistence/experiment_logs/vith14.224-bs.2048-ep.300', filename))
+        os.chmod(os.path.join('/percistence/experiment_logs/vith14.224-bs.2048-ep.300', filename), 0o666)
 
     print('DONE!')
 

@@ -29,7 +29,7 @@ from source.datasets.ptz_dataset import PTZImageDataset
 # --
 #log_timings = True
 log_freq = 10
-checkpoint_freq = 5
+checkpoint_freq = 50
 # --
 
 def train(args, logger=None, resume_preempt=False):
@@ -193,7 +193,6 @@ def train(args, logger=None, resume_preempt=False):
             scheduler.step()
             wd_scheduler.step()
             next(momentum_scheduler)
-            mask_collator.step()
 
 
     def save_checkpoint(epoch):
@@ -262,6 +261,30 @@ def train(args, logger=None, resume_preempt=False):
 
         return context_imgs.to(device), context_poss.to(device), target_imgs.to(device), target_poss.to(device)
  
+
+    def detect_plateau(loss_values, patience=5, threshold=1e-4):
+        """
+        Detects plateauing behavior in a loss curve.
+
+        Parameters:
+            loss_values (list or numpy array): List or array containing the loss values over epochs.
+            patience (int): Number of epochs with no improvement to wait before stopping.
+            threshold (float): Threshold for the change in loss to be considered as plateauing.
+
+        Returns:
+            plateaued (bool): True if the loss has plateaued, False otherwise.
+        """
+        if len(loss_values) < patience + 1:
+            return False  # Not enough data to detect plateauing
+
+        recent_losses = loss_values[-patience:]
+        mean_loss = np.mean(recent_losses)
+        current_loss = loss_values[-1]
+
+        if np.abs(current_loss - mean_loss) < threshold:
+            return True  # Loss has plateaued
+        else:
+            return False  # Loss has not plateaued
 
 
     def train_step(inputs):
@@ -334,11 +357,9 @@ def train(args, logger=None, resume_preempt=False):
 
 
     # -- TRAINING LOOP
+    loss_values = []
     for epoch in range(start_epoch, num_epochs):
         logger.info('Epoch %d' % (epoch + 1))
-        print('--------------->>>>>>>>>>>>>>>> Epoch: ', epoch)
-        if epoch > 0:
-            print('loss: ', loss)
 
         loss_meter = AverageMeter()
         time_meter = AverageMeter()
@@ -359,7 +380,14 @@ def train(args, logger=None, resume_preempt=False):
 
         # -- Save Checkpoint after every epoch
         logger.info('avg. loss %.3f' % loss_meter.avg)
+        loss_values.append(loss_meter.avg)
         save_checkpoint(epoch+1)
+        if detect_plateau(loss_values, patience=10, threshold=1e-3):
+            return False
+
+    
+    return True
+
 
 
 
