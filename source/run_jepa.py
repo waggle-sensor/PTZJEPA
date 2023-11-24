@@ -90,6 +90,7 @@ def train(args, logger=None, resume_preempt=False):
 
     # -- LOGGING
     folder = args['logging']['folder']
+    ownership_folder = args['logging']['ownership_folder']
     tag = args['logging']['write_tag']
 
     if not os.path.exists(folder):
@@ -287,6 +288,17 @@ def train(args, logger=None, resume_preempt=False):
             return False  # Loss has not plateaued
 
 
+
+    def change_ownership(folder):
+        for subdir, dirs, files in os.walk(folder):
+            os.chmod(subdir, 0o777)
+
+            for File in files:
+                os.chmod(os.path.join(subdir, File), 0o666)
+
+
+
+
     def train_step(inputs):
         _new_lr = scheduler.step()
         _new_wd = wd_scheduler.step()
@@ -382,6 +394,7 @@ def train(args, logger=None, resume_preempt=False):
         logger.info('avg. loss %.3f' % loss_meter.avg)
         loss_values.append(loss_meter.avg)
         save_checkpoint(epoch+1)
+        change_ownership(ownership_folder)
         if detect_plateau(loss_values, patience=10, threshold=1e-3):
             return False
 
