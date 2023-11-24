@@ -5,6 +5,7 @@ import time
 import datetime
 import os
 import glob
+import yaml
 import csv
 import os.path
 import traceback
@@ -20,15 +21,6 @@ from PIL import Image
 from waggle.plugin import Plugin
 
 from source.run_jepa import run as run_jepa
-
-def dir_iteration(dir_path):
-    for subdir, dirs, files in os.walk(dir_path):
-        os.chmod(subdir, 0o777)
-
-        for File in files:
-            os.chmod(os.path.join(subdir, File), 0o666)
-
-
 
 
 def set_random_position(camera, args):
@@ -218,8 +210,6 @@ def pretraining_wrapper(arguments):
         prepare_images()
         training_complete = run_jepa(arguments.fname, 'train')
   
-        dir_iteration(arguments.folder)
-
 
 def main():
     parser = argparse.ArgumentParser("PTZ JEPA")
