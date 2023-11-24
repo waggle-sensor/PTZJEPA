@@ -19,6 +19,18 @@ from PIL import Image
 
 from waggle.plugin import Plugin
 
+from source.run_jepa import run as run_jepa
+
+def dir_iteration(dir_path):
+    for subdir, dirs, files in os.walk(dir_path):
+        os.chmod(subdir, 0o777)
+
+        for File in files:
+            os.chmod(os.path.join(subdir, File), 0o666)
+
+
+
+
 def set_random_position(camera, args):
     if args.camerabrand==0:
         pan_pos = np.random.randint(0, 360)
@@ -205,6 +217,8 @@ def pretraining_wrapper(arguments):
         operate_ptz(arguments)
         prepare_images()
         training_complete = run_jepa(arguments.fname, 'train')
+  
+        dir_iteration(arguments.folder)
 
 
 def main():
@@ -237,18 +251,9 @@ def main():
 
     args = parser.parse_args()
 
-    from source.run_jepa import run as run_jepa
-
     os.environ['CUDA_VISIBLE_DEVICES'] = str(0)
 
     pretraining_wrapper(args)
-
-    os.chmod('/percistence/experiment_logs', 0o777)
-    os.chmod('/percistence/experiment_logs/vith14.224-bs.2048-ep.300', 0o777)
-    filelist = os.listdir('/percistence/experiment_logs/vith14.224-bs.2048-ep.300/')
-    for filename in filelist:
-        print(os.path.join('/percistence/experiment_logs/vith14.224-bs.2048-ep.300', filename))
-        os.chmod(os.path.join('/percistence/experiment_logs/vith14.224-bs.2048-ep.300', filename), 0o666)
 
     print('DONE!')
 
