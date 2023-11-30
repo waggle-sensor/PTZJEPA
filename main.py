@@ -208,7 +208,9 @@ def pretraining_wrapper(arguments):
     while not training_complete:
         operate_ptz(arguments)
         prepare_images()
-        training_complete = run_jepa(arguments.fname, 'train')
+        #training_complete = run_jepa(arguments.fname, 'train')
+        training_complete = run_jepa(arguments.fname, 'world_model')
+
   
 
 def main():
