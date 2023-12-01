@@ -660,7 +660,7 @@ def world_model(args, logger=None, resume_preempt=False):
 
 
 
-    def detect_plateau(loss_values, patience=5, threshold=1.0):
+    def detect_plateau(loss_values, patience=5, threshold=1e-4):
         """
         Detects plateauing behavior in a loss curve.
 
@@ -735,7 +735,8 @@ def world_model(args, logger=None, resume_preempt=False):
         with torch.no_grad():
             m = next(momentum_scheduler)
             for param_q, param_k in zip(encoder.parameters(), target_encoder.parameters()):
-                param_k.data.mul_(m).add_((1.-m) * param_q.detach().data)
+                param_k.detach().data.mul_(m).add_((1.-m) * param_q.detach().data)
+                #param_k.data.mul_(m).add_((1.-m) * param_q.detach().data)
 
         return (float(loss), _new_lr, _new_wd, grad_stats)
 
@@ -815,7 +816,7 @@ def world_model(args, logger=None, resume_preempt=False):
         loss_values.append(loss_meter.avg)
         save_checkpoint(epoch+1)
         change_ownership(ownership_folder)
-        if detect_plateau(loss_values, patience=10, threshold=1e-3):
+        if detect_plateau(loss_values, patience=10, threshold=1.0):
             return False
 
     return True
