@@ -89,6 +89,10 @@ def train(args, logger=None, resume_preempt=False):
     lr = args['optimization']['lr']
     final_lr = args['optimization']['final_lr']
 
+    # -- PLATEAU
+    patience = args['plateau']['patience']
+    threshold = args['plateau']['threshold']
+
     # -- LOGGING
     folder = args['logging']['folder']
     ownership_folder = args['logging']['ownership_folder']
@@ -396,7 +400,7 @@ def train(args, logger=None, resume_preempt=False):
         loss_values.append(loss_meter.avg)
         save_checkpoint(epoch+1)
         change_ownership(ownership_folder)
-        if detect_plateau(loss_values, patience=10, threshold=1e-3):
+        if detect_plateau(loss_values, patience=patience, threshold=threshold):
             return False
 
     
@@ -473,6 +477,10 @@ def world_model(args, logger=None, resume_preempt=False):
     start_lr = args['optimization']['start_lr']
     lr = args['optimization']['lr']
     final_lr = args['optimization']['final_lr']
+
+    # -- PLATEAU
+    patience = args['plateau']['patience']
+    threshold = args['plateau']['threshold']
 
     # -- LOGGING
     folder = args['logging']['folder']
@@ -816,10 +824,142 @@ def world_model(args, logger=None, resume_preempt=False):
         loss_values.append(loss_meter.avg)
         save_checkpoint(epoch+1)
         change_ownership(ownership_folder)
-        if detect_plateau(loss_values, patience=10, threshold=1.0):
+        if detect_plateau(loss_values, patience=patience, threshold=threshold):
             return False
 
     return True
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+def dreamer(args, logger=None, resume_preempt=False):
+    # ----------------------------------------------------------------------- #
+    #  PASSED IN PARAMS FROM CONFIG FILE
+    # ----------------------------------------------------------------------- #
+
+    # -- META
+    use_bfloat16 = args['meta']['use_bfloat16']
+    model_name = args['meta']['model_name']
+    load_model = args['meta']['load_checkpoint'] or resume_preempt
+    r_file = args['meta']['read_checkpoint']
+    copy_data = args['meta']['copy_data']
+    pred_depth = args['meta']['pred_depth']
+    pred_emb_dim = args['meta']['pred_emb_dim']
+    if not torch.cuda.is_available():
+        device = torch.device('cpu')
+    else:
+        device = torch.device('cuda:0')
+        torch.cuda.set_device(device)
+
+    # -- DATA
+    use_gaussian_blur = args['data']['use_gaussian_blur']
+    use_horizontal_flip = args['data']['use_horizontal_flip']
+    use_color_distortion = args['data']['use_color_distortion']
+    color_jitter = args['data']['color_jitter_strength']
+    # --
+    batch_size = args['data']['batch_size']
+    pin_mem = args['data']['pin_mem']
+    num_workers = args['data']['num_workers']
+    root_path = args['data']['root_path']
+    image_folder = args['data']['image_folder']
+    crop_size = args['data']['crop_size']
+    crop_scale = args['data']['crop_scale']
+    # --
+
+    # -- MASK
+    allow_overlap = args['mask']['allow_overlap']  # whether to allow overlap b/w context and target blocks
+    patch_size = args['mask']['patch_size']  # patch-size for model training
+    num_enc_masks = args['mask']['num_enc_masks']  # number of context blocks
+    min_keep = args['mask']['min_keep']  # min number of patches in context block
+    enc_mask_scale = args['mask']['enc_mask_scale']  # scale of context blocks
+    num_pred_masks = args['mask']['num_pred_masks']  # number of target blocks
+    pred_mask_scale = args['mask']['pred_mask_scale']  # scale of target blocks
+    aspect_ratio = args['mask']['aspect_ratio']  # aspect ratio of target blocks
+    # --
+
+    # -- OPTIMIZATION
+    ema = args['optimization']['ema']
+    ipe_scale = args['optimization']['ipe_scale']  # scheduler scale factor (def: 1.0)
+    wd = float(args['optimization']['weight_decay'])
+    final_wd = float(args['optimization']['final_weight_decay'])
+    num_epochs = args['optimization']['epochs']
+    warmup = args['optimization']['warmup']
+    start_lr = args['optimization']['start_lr']
+    lr = args['optimization']['lr']
+    final_lr = args['optimization']['final_lr']
+
+    # -- PLATEAU
+    patience = args['plateau']['patience']
+    threshold = args['plateau']['threshold']
+
+    # -- LOGGING
+    folder = args['logging']['folder']
+    ownership_folder = args['logging']['ownership_folder']
+    tag = args['logging']['write_tag']
+
+    if not os.path.exists(folder):
+        os.makedirs(folder)
+
+    dump = os.path.join(folder, 'params-ijepa.yaml')
+    with open(dump, 'w') as f:
+        yaml.dump(args, f)
+    # ----------------------------------------------------------------------- #
+
+
+
+
+
+    return True
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -852,6 +992,8 @@ def run(fname, mode):
         return train(params, logger=logger)
     if mode=='world_model':
         return world_model(params, logger=logger)
+    if mode=='dreamer':
+        return dreamer(params, logger=logger)
     else:
         print(f"Unexpected mode {mode}")
         raise
