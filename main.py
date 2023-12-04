@@ -209,7 +209,8 @@ def pretraining_wrapper(arguments):
         operate_ptz(arguments)
         prepare_images()
         #training_complete = run_jepa(arguments.fname, 'train')
-        training_complete = run_jepa(arguments.fname, 'world_model')
+        #training_complete = run_jepa(arguments.fname, 'world_model')
+        training_complete = run_jepa(arguments.fname, 'dreamer')
 
   
 
