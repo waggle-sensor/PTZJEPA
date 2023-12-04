@@ -922,6 +922,82 @@ def dreamer(args, logger=None, resume_preempt=False):
     # ----------------------------------------------------------------------- #
 
 
+    # -- log/checkpointing paths
+    log_file = os.path.join(folder, f'{tag}.csv')
+    save_path = os.path.join(folder, f'{tag}' + '-ep{epoch}.pth.tar')
+    latest_path = os.path.join(folder, f'{tag}-latest.pth.tar')
+    load_path = None
+    if load_model:
+        load_path = os.path.join(folder, r_file) if r_file is not None else latest_path
+
+    print('log_file ', log_file)
+    print('save_path ', save_path)
+    print('latest_path ', latest_path)
+    print('load_path ', load_path)
+
+    # -- make csv_logger
+    csv_logger = CSVLogger(log_file,
+                           ('%d', 'epoch'),
+                           ('%d', 'itr'),
+                           ('%.5f', 'loss'),
+                           ('%.5f', 'mask-A'),
+                           ('%.5f', 'mask-B'),
+                           ('%d', 'time (ms)'))
+
+
+
+
+    # -- init world model
+    encoder, predictor = init_world_model(
+        device=device,
+        patch_size=patch_size,
+        crop_size=crop_size,
+        pred_depth=pred_depth,
+        pred_emb_dim=pred_emb_dim,
+        model_name=model_name)
+
+
+
+    # -- make data transforms
+    transform = make_transforms(
+        crop_size=crop_size,
+        crop_scale=crop_scale,
+        gaussian_blur=use_gaussian_blur,
+        horizontal_flip=use_horizontal_flip,
+        color_distortion=use_color_distortion,
+        color_jitter=color_jitter)
+
+
+
+
+    # -- init data-loader
+    data = PTZImageDataset('./labels', './collected_imgs', transform=transform)
+    dataloader = DataLoader(data, batch_size=batch_size, shuffle=False)
+    ipe = len(dataloader)
+
+
+
+
+
+
+    start_epoch = 0
+    # -- load training checkpoint
+    if load_model:
+        encoder, predictor, target_encoder, optimizer, scaler, start_epoch = load_checkpoint(
+            device=device,
+            r_path=load_path,
+            encoder=encoder,
+            predictor=predictor)
+
+
+
+
+
+
+
+
+
+
 
 
 
