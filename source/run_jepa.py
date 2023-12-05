@@ -946,7 +946,6 @@ def dreamer(args, logger=None, resume_preempt=False):
 
 
 
-
     # -- init world model
     encoder, predictor = init_world_model(
         device=device,
@@ -977,13 +976,19 @@ def dreamer(args, logger=None, resume_preempt=False):
 
 
 
+    for e in encoder.parameters():
+        e.requires_grad = False
+
+    for p in predictor.parameters():
+        p.requires_grad = False
+
 
 
 
     start_epoch = 0
     # -- load training checkpoint
     if load_model:
-        encoder, predictor, target_encoder, optimizer, scaler, start_epoch = load_checkpoint(
+        encoder, predictor, _, _, _, _ = load_checkpoint(
             device=device,
             r_path=load_path,
             encoder=encoder,
@@ -995,16 +1000,141 @@ def dreamer(args, logger=None, resume_preempt=False):
 
 
 
+    def dream_step(inputs):
+        images = inputs[0]
+        possitions = inputs[1]
+
+        state_space_sequence = []
+        # Step 1. Forward image through encoder
+        prior = forward_image(images)
 
 
 
 
+        ## Step 1. Auxiliary Forward
+        #h = forward_target(inputs[2])
+        #with torch.no_grad():
+        #    z, r = forward_context(inputs[0], inputs[1], inputs[3])
+        #auxiliary_loss = auxiliary_loss_fn(z, h)
+
+        ## Step 2. Auxiliary Backward
+        #auxiliary_loss.backward()
+        #grads = []
+        #for param in target_encoder.parameters():
+        #    if param.grad != None:
+        #        grads.append(param.grad.view(-1))
+        #grads = torch.cat(grads)
+        #g = grads.abs().sum()
+        #target_encoder.zero_grad()
+
+        ## Step 3. Forward
+        #with torch.no_grad():
+        #    h = forward_target(inputs[2])
+        #z, r = forward_context(inputs[0], inputs[1], inputs[3])
+        #loss = loss_fn(z, r, h, g)
+
+        ## Step 4. Backward & step
+        #loss.backward()
+        #optimizer.step()
+        #grad_stats = grad_logger(encoder.named_parameters())
+        #optimizer.zero_grad()
+
+
+        ## Step 5. momentum update of target encoder
+        #with torch.no_grad():
+        #    m = next(momentum_scheduler)
+        #    for param_q, param_k in zip(encoder.parameters(), target_encoder.parameters()):
+        #        param_k.detach().data.mul_(m).add_((1.-m) * param_q.detach().data)
+        #        #param_k.data.mul_(m).add_((1.-m) * param_q.detach().data)
+
+        #return (float(loss), _new_lr, _new_wd, grad_stats)
+        return 0
+
+
+
+
+
+    def forward_image(images):
+        z = encoder(images)
+        return z
+
+
+
+
+
+    def forward_target(images):
+        h = target_encoder(images)
+        h = F.layer_norm(h, (h.size(-1),))  # normalize over feature-dim
+        return h
+
+    def forward_context(images, possition1, possition2):
+        z = encoder(images)
+        z, r = predictor(z, possition1, possition2) 
+        return z, r
+
+
+    def auxiliary_loss_fn(z, h):
+        loss = F.smooth_l1_loss(z, h)
+        return loss
+
+    def loss_fn(z, r, h, g):
+        loss1 = F.smooth_l1_loss(z, h)
+        loss2 = F.smooth_l1_loss(r, g.repeat(r.shape))# * 1e-4
+        loss = loss1 + loss2
+        return loss
+
+
+
+
+
+    def get_position_from_label(labels):
+        possitions = []
+        for label in labels:
+            poss = label.split('_')[0].split(',')
+            possitions.append([float(poss[0]), float(poss[1]), float(poss[2])])
+
+        return torch.tensor(possitions)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    # -- DREAM LOOP
+    num_dreams = 10
+    for dream in range(num_dreams):
+        print('dream ', dream)
+
+        for itr, (imgs, labls) in enumerate(dataloader):
+            poss = get_position_from_label(labls)
+            imgs = imgs.to(device, non_blocking=True)
+            poss = poss.to(device, non_blocking=True)
+            print('imgs.shape ', imgs.shape)
+            print('poss.shape ', poss.shape)
+            
+            #context_imgs, context_poss, target_imgs, target_poss = arrage_inputs(imgs, poss)
+
+            (dump), etime = gpu_timer(dream_step, arguments=[imgs, poss])
 
 
     return True
-
-
-
 
 
 
