@@ -913,6 +913,44 @@ def dreamer(args, logger=None, resume_preempt=False):
     ownership_folder = args['logging']['ownership_folder']
     tag = args['logging']['write_tag']
 
+    # -- ACTIONS
+    action_short_left = args['action']['short']['left']
+    action_short_right = args['action']['short']['right']
+    action_short_left_up = args['action']['short']['left_up']
+    action_short_right_up = args['action']['short']['right_up']
+    action_short_left_down = args['action']['short']['left_down']
+    action_short_right_down = args['action']['short']['right_down']
+    action_short_up = args['action']['short']['up']
+    action_short_down = args['action']['short']['down']
+    action_short_zoom_in = args['action']['short']['zoom_in']
+    action_short_zoom_out = args['action']['short']['zoom_out']
+
+    action_long_left = args['action']['long']['left']
+    action_long_right = args['action']['long']['right']
+    action_long_up = args['action']['long']['up']
+    action_long_down = args['action']['long']['down']
+    action_long_zoom_in = args['action']['long']['zoom_in']
+    action_long_zoom_out = args['action']['long']['zoom_out']
+
+    actions={}
+    actions[0]=action_short_left
+    actions[1]=action_short_right
+    actions[2]=action_short_left_up
+    actions[3]=action_short_right_up
+    actions[4]=action_short_left_down
+    actions[5]=action_short_right_down
+    actions[6]=action_short_up
+    actions[7]=action_short_down
+    actions[8]=action_short_zoom_in
+    actions[9]=action_short_zoom_out
+    actions[10]=action_long_left
+    actions[11]=action_long_right
+    actions[12]=action_long_up
+    actions[13]=action_long_down
+    actions[14]=action_long_zoom_in
+    actions[15]=action_long_zoom_out
+
+    
     if not os.path.exists(folder):
         os.makedirs(folder)
 
@@ -1006,7 +1044,14 @@ def dreamer(args, logger=None, resume_preempt=False):
 
         state_space_sequence = []
         # Step 1. Forward image through encoder
-        prior = forward_image(images)
+        internal = get_internal_representation(images)
+        for step in range(20):
+            next_possitions=get_next_random_possitions(possitions, actions)
+            forward_internal_representation(internal, possitions, next_possitions)
+            print('poss.shape ', possitions.shape)
+            print('poss ', possitions)
+            print('next_poss.shape ', next_possitions.shape)
+            print('next_poss ', next_possitions)
 
 
 
@@ -1054,9 +1099,37 @@ def dreamer(args, logger=None, resume_preempt=False):
 
 
 
-    def forward_image(images):
+    def get_internal_representation(images):
         z = encoder(images)
         return z
+
+    def forward_internal_representation(internal, possition1, possition2):
+        z, r = predictor(internal, possition1, possition2) 
+        return z, r
+
+    def choose_random_action(actions):
+        return actions[np.random.randint(len(actions.keys()))]
+
+    def get_next_random_possitions(possitions, actions):
+        next_possitions = torch.zeros_like(possitions)
+        for i, possition in enumerate(possitions):
+            action = torch.tensor(choose_random_action(actions)).to(device)
+            next_possitions[i] = possition + action
+
+        return next_possitions
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1118,7 +1191,8 @@ def dreamer(args, logger=None, resume_preempt=False):
 
 
     # -- DREAM LOOP
-    num_dreams = 10
+    num_dreams = 10                # the number of dreams in this run
+    #dream_length = 20                # the number of ptz commands in each dream
     for dream in range(num_dreams):
         print('dream ', dream)
 
@@ -1126,8 +1200,9 @@ def dreamer(args, logger=None, resume_preempt=False):
             poss = get_position_from_label(labls)
             imgs = imgs.to(device, non_blocking=True)
             poss = poss.to(device, non_blocking=True)
-            print('imgs.shape ', imgs.shape)
-            print('poss.shape ', poss.shape)
+            #print('imgs.shape ', imgs.shape)
+            #print('poss.shape ', poss.shape)
+            #print('poss ', poss)
             
             #context_imgs, context_poss, target_imgs, target_poss = arrage_inputs(imgs, poss)
 
