@@ -1042,18 +1042,45 @@ def dreamer(args, logger=None, resume_preempt=False):
         images = inputs[0]
         possitions = inputs[1]
 
-        state_space_sequence = []
+        state_sequence = []
+        possition_sequence = []
+        reward_sequence = []
         # Step 1. Forward image through encoder
-        internal = get_internal_representation(images)
+        internal_state = get_internal_representation(images)
         for step in range(20):
+            state_sequence.append(internal_state.unsqueeze(0))
+            possition_sequence.append(possitions.unsqueeze(0))
+
             next_possitions=get_next_random_possitions(possitions, actions)
-            forward_internal_representation(internal, possitions, next_possitions)
-            print('poss.shape ', possitions.shape)
-            print('poss ', possitions)
-            print('next_poss.shape ', next_possitions.shape)
-            print('next_poss ', next_possitions)
+            next_internal_state, next_reward = forward_internal_representation(internal_state, possitions, next_possitions)
 
+            internal_state = next_internal_state
+            possitions = next_possitions
+            reward = next_reward.squeeze(-1)
+            reward = reward.mean(-1)
+            reward_sequence.append(reward.unsqueeze(0))
 
+        state_sequence.append(internal_state.unsqueeze(0))
+        possition_sequence.append(possitions.unsqueeze(0))
+
+        B, D1, D2 = internal_state.shape
+        aux = torch.Tensor(len(state_sequence), B, D1, D2).to(device)
+        torch.cat(state_sequence, out=aux)
+        state_sequence=aux
+
+        B, D1 = possitions.shape
+        aux = torch.Tensor(len(possition_sequence), B, D1).to(device)
+        torch.cat(possition_sequence, out=aux)
+        possition_sequence=aux
+
+        B = reward.shape[0]
+        aux = torch.Tensor(len(reward_sequence), B).to(device)
+        torch.cat(reward_sequence, out=aux)
+        reward_sequence=aux
+
+        print('state_sequence.shape: ', state_sequence.shape)
+        print('possition_sequence.shape: ', possition_sequence.shape)
+        print('reward_sequence.shape: ', reward_sequence.shape)
 
 
         ## Step 1. Auxiliary Forward
@@ -1103,8 +1130,8 @@ def dreamer(args, logger=None, resume_preempt=False):
         z = encoder(images)
         return z
 
-    def forward_internal_representation(internal, possition1, possition2):
-        z, r = predictor(internal, possition1, possition2) 
+    def forward_internal_representation(internal_state, possition1, possition2):
+        z, r = predictor(internal_state, possition1, possition2) 
         return z, r
 
     def choose_random_action(actions):
@@ -1200,9 +1227,6 @@ def dreamer(args, logger=None, resume_preempt=False):
             poss = get_position_from_label(labls)
             imgs = imgs.to(device, non_blocking=True)
             poss = poss.to(device, non_blocking=True)
-            #print('imgs.shape ', imgs.shape)
-            #print('poss.shape ', poss.shape)
-            #print('poss ', poss)
             
             #context_imgs, context_poss, target_imgs, target_poss = arrage_inputs(imgs, poss)
 
