@@ -908,6 +908,10 @@ def dreamer(args, logger=None, resume_preempt=False):
     patience = args['plateau']['patience']
     threshold = args['plateau']['threshold']
 
+    # -- DREAMER
+    number_of_dreams = args['dreamer']['number_of_dreams']
+    dream_length = args['dreamer']['dream_length']
+
     # -- LOGGING
     folder = args['logging']['folder']
     ownership_folder = args['logging']['ownership_folder']
@@ -964,6 +968,7 @@ def dreamer(args, logger=None, resume_preempt=False):
     log_file = os.path.join(folder, f'{tag}.csv')
     save_path = os.path.join(folder, f'{tag}' + '-ep{epoch}.pth.tar')
     latest_path = os.path.join(folder, f'{tag}-latest.pth.tar')
+    dream_save_path = os.path.join(folder, f'{tag}' + '-dream{dream}.pth.tar')
     load_path = None
     if load_model:
         load_path = os.path.join(folder, r_file) if r_file is not None else latest_path
@@ -1035,6 +1040,12 @@ def dreamer(args, logger=None, resume_preempt=False):
 
 
 
+    def save_dreams(dream_id, dream_dict):
+        torch.save(dream_dict, dream_save_path.format(dream=f'{dream_id}'))
+
+
+
+
 
 
 
@@ -1045,13 +1056,14 @@ def dreamer(args, logger=None, resume_preempt=False):
         state_sequence = []
         possition_sequence = []
         reward_sequence = []
+        action_sequence = []
         # Step 1. Forward image through encoder
         internal_state = get_internal_representation(images)
-        for step in range(20):
+        for step in range(dream_length):
             state_sequence.append(internal_state.unsqueeze(0))
             possition_sequence.append(possitions.unsqueeze(0))
 
-            next_possitions=get_next_random_possitions(possitions, actions)
+            next_possitions, next_actions = get_next_random_possitions(possitions, actions)
             next_internal_state, next_reward = forward_internal_representation(internal_state, possitions, next_possitions)
 
             internal_state = next_internal_state
@@ -1059,6 +1071,7 @@ def dreamer(args, logger=None, resume_preempt=False):
             reward = next_reward.squeeze(-1)
             reward = reward.mean(-1)
             reward_sequence.append(reward.unsqueeze(0))
+            action_sequence.append(next_actions.unsqueeze(0))
 
         state_sequence.append(internal_state.unsqueeze(0))
         possition_sequence.append(possitions.unsqueeze(0))
@@ -1078,48 +1091,24 @@ def dreamer(args, logger=None, resume_preempt=False):
         torch.cat(reward_sequence, out=aux)
         reward_sequence=aux
 
-        print('state_sequence.shape: ', state_sequence.shape)
-        print('possition_sequence.shape: ', possition_sequence.shape)
-        print('reward_sequence.shape: ', reward_sequence.shape)
+        B = next_actions.shape[0]
+        aux = torch.Tensor(len(action_sequence), B).to(device)
+        torch.cat(action_sequence, out=aux)
+        action_sequence=aux
 
+        #print('state_sequence.shape: ', state_sequence.shape)
+        #print('possition_sequence.shape: ', possition_sequence.shape)
+        #print('reward_sequence.shape: ', reward_sequence.shape)
+        #print('action_sequence.shape ', action_sequence.shape)
 
-        ## Step 1. Auxiliary Forward
-        #h = forward_target(inputs[2])
-        #with torch.no_grad():
-        #    z, r = forward_context(inputs[0], inputs[1], inputs[3])
-        #auxiliary_loss = auxiliary_loss_fn(z, h)
+        dream_dict = {
+	    'state_sequence': state_sequence,
+	    'possition_sequence': possition_sequence,
+	    'reward_sequence': reward_sequence,
+	    'action_sequence': action_sequence
+        }
+        save_dreams(np.random.randint(100), dream_dict)
 
-        ## Step 2. Auxiliary Backward
-        #auxiliary_loss.backward()
-        #grads = []
-        #for param in target_encoder.parameters():
-        #    if param.grad != None:
-        #        grads.append(param.grad.view(-1))
-        #grads = torch.cat(grads)
-        #g = grads.abs().sum()
-        #target_encoder.zero_grad()
-
-        ## Step 3. Forward
-        #with torch.no_grad():
-        #    h = forward_target(inputs[2])
-        #z, r = forward_context(inputs[0], inputs[1], inputs[3])
-        #loss = loss_fn(z, r, h, g)
-
-        ## Step 4. Backward & step
-        #loss.backward()
-        #optimizer.step()
-        #grad_stats = grad_logger(encoder.named_parameters())
-        #optimizer.zero_grad()
-
-
-        ## Step 5. momentum update of target encoder
-        #with torch.no_grad():
-        #    m = next(momentum_scheduler)
-        #    for param_q, param_k in zip(encoder.parameters(), target_encoder.parameters()):
-        #        param_k.detach().data.mul_(m).add_((1.-m) * param_q.detach().data)
-        #        #param_k.data.mul_(m).add_((1.-m) * param_q.detach().data)
-
-        #return (float(loss), _new_lr, _new_wd, grad_stats)
         return 0
 
 
@@ -1135,15 +1124,20 @@ def dreamer(args, logger=None, resume_preempt=False):
         return z, r
 
     def choose_random_action(actions):
-        return actions[np.random.randint(len(actions.keys()))]
+        action=np.random.randint(len(actions.keys()))
+        return actions[action], action
 
-    def get_next_random_possitions(possitions, actions):
+    def get_next_random_possitions(possitions, actions_set):
         next_possitions = torch.zeros_like(possitions)
+        next_actions = []
         for i, possition in enumerate(possitions):
-            action = torch.tensor(choose_random_action(actions)).to(device)
-            next_possitions[i] = possition + action
+            ptz_command, action = choose_random_action(actions_set)
+            ptz_command = torch.tensor(ptz_command).to(device)
+            next_actions.append(action)
+            next_possitions[i] = possition + ptz_command
 
-        return next_possitions
+        next_actions=torch.tensor(next_actions).to(device)
+        return next_possitions, next_actions
 
 
 
@@ -1218,9 +1212,7 @@ def dreamer(args, logger=None, resume_preempt=False):
 
 
     # -- DREAM LOOP
-    num_dreams = 10                # the number of dreams in this run
-    #dream_length = 20                # the number of ptz commands in each dream
-    for dream in range(num_dreams):
+    for dream in range(number_of_dreams):
         print('dream ', dream)
 
         for itr, (imgs, labls) in enumerate(dataloader):
@@ -1228,8 +1220,6 @@ def dreamer(args, logger=None, resume_preempt=False):
             imgs = imgs.to(device, non_blocking=True)
             poss = poss.to(device, non_blocking=True)
             
-            #context_imgs, context_poss, target_imgs, target_poss = arrage_inputs(imgs, poss)
-
             (dump), etime = gpu_timer(dream_step, arguments=[imgs, poss])
 
 
