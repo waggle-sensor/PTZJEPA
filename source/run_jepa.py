@@ -1059,6 +1059,7 @@ def dreamer(args, logger=None, resume_preempt=False):
         action_sequence = []
         # Step 1. Forward image through encoder
         internal_state = get_internal_representation(images)
+        # Step 2. Iterate forwarding internal representations through the predictor
         for step in range(dream_length):
             state_sequence.append(internal_state.unsqueeze(0))
             possition_sequence.append(possitions.unsqueeze(0))
@@ -1095,11 +1096,6 @@ def dreamer(args, logger=None, resume_preempt=False):
         aux = torch.Tensor(len(action_sequence), B).to(device)
         torch.cat(action_sequence, out=aux)
         action_sequence=aux
-
-        #print('state_sequence.shape: ', state_sequence.shape)
-        #print('possition_sequence.shape: ', possition_sequence.shape)
-        #print('reward_sequence.shape: ', reward_sequence.shape)
-        #print('action_sequence.shape ', action_sequence.shape)
 
         dream_dict = {
 	    'state_sequence': state_sequence,
@@ -1141,21 +1137,6 @@ def dreamer(args, logger=None, resume_preempt=False):
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     def forward_target(images):
         h = target_encoder(images)
         h = F.layer_norm(h, (h.size(-1),))  # normalize over feature-dim
@@ -1179,8 +1160,6 @@ def dreamer(args, logger=None, resume_preempt=False):
 
 
 
-
-
     def get_position_from_label(labels):
         possitions = []
         for label in labels:
@@ -1192,29 +1171,8 @@ def dreamer(args, logger=None, resume_preempt=False):
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     # -- DREAM LOOP
     for dream in range(number_of_dreams):
-        print('dream ', dream)
-
         for itr, (imgs, labls) in enumerate(dataloader):
             poss = get_position_from_label(labls)
             imgs = imgs.to(device, non_blocking=True)
