@@ -1,6 +1,8 @@
 # this python script runs jepa
 
 import os
+import shutil
+import random
 import copy
 import logging
 import yaml
@@ -487,10 +489,17 @@ def world_model(args, logger=None, resume_preempt=False):
     ownership_folder = args['logging']['ownership_folder']
     tag = args['logging']['write_tag']
 
+    # -- MEMORY
+    memory_models = args['memory']['models']
+
     if not os.path.exists(folder):
         os.makedirs(folder)
 
-    dump = os.path.join(folder, 'params-ijepa.yaml')
+    model_ID='model_'+str(torch.randint(memory_models, (1,)).item())
+    if not os.path.exists(os.path.join(folder, model_ID)):
+        os.makedirs(os.path.join(folder, model_ID))
+
+    dump = os.path.join(folder, model_ID, 'params-ijepa.yaml')
     with open(dump, 'w') as f:
         yaml.dump(args, f)
     # ----------------------------------------------------------------------- #
@@ -498,9 +507,9 @@ def world_model(args, logger=None, resume_preempt=False):
 
 
     # -- log/checkpointing paths
-    log_file = os.path.join(folder, f'{tag}.csv')
-    save_path = os.path.join(folder, f'{tag}' + '-ep{epoch}.pth.tar')
-    latest_path = os.path.join(folder, f'{tag}-latest.pth.tar')
+    log_file = os.path.join(folder, model_ID, f'{tag}.csv')
+    save_path = os.path.join(folder, model_ID, f'{tag}' + '-ep{epoch}.pth.tar')
+    latest_path = os.path.join(folder, model_ID, f'{tag}-latest.pth.tar')
     load_path = None
     if load_model:
         load_path = os.path.join(folder, r_file) if r_file is not None else latest_path
@@ -827,6 +836,11 @@ def world_model(args, logger=None, resume_preempt=False):
         if detect_plateau(loss_values, patience=patience, threshold=threshold):
             return False
 
+
+    if start_epoch == num_epochs:
+        PATH, FILE = os.path.split(latest_path)
+        shutil.rmtree(PATH)
+
     return True
 
 
@@ -914,6 +928,7 @@ def dreamer(args, logger=None, resume_preempt=False):
 
     # -- LOGGING
     folder = args['logging']['folder']
+    dream_folder = args['logging']['dream_folder']
     ownership_folder = args['logging']['ownership_folder']
     tag = args['logging']['write_tag']
 
@@ -954,21 +969,33 @@ def dreamer(args, logger=None, resume_preempt=False):
     actions[14]=action_long_zoom_in
     actions[15]=action_long_zoom_out
 
+    # -- MEMORY
+    memory_dreams = args['memory']['dreams']
+
     
     if not os.path.exists(folder):
         os.makedirs(folder)
 
-    dump = os.path.join(folder, 'params-ijepa.yaml')
+    dream_ID='dream_'+str(torch.randint(memory_dreams, (1,)).item())
+    if not os.path.exists(os.path.join(dream_folder, dream_ID)):
+        os.makedirs(os.path.join(dream_folder, dream_ID))
+
+    models=[]
+    for subdir in os.listdir(folder):
+        models.append(subdir)
+    model_ID=random.sample(models,1)[0]
+
+    dump = os.path.join(folder, model_ID, 'params-ijepa.yaml')
     with open(dump, 'w') as f:
         yaml.dump(args, f)
     # ----------------------------------------------------------------------- #
-
+    
 
     # -- log/checkpointing paths
-    log_file = os.path.join(folder, f'{tag}.csv')
-    save_path = os.path.join(folder, f'{tag}' + '-ep{epoch}.pth.tar')
-    latest_path = os.path.join(folder, f'{tag}-latest.pth.tar')
-    dream_save_path = os.path.join(folder, f'{tag}' + '-dream{dream}.pth.tar')
+    log_file = os.path.join(folder, model_ID, f'{tag}.csv')
+    save_path = os.path.join(folder, model_ID, f'{tag}' + '-ep{epoch}.pth.tar')
+    latest_path = os.path.join(folder, model_ID, f'{tag}-latest.pth.tar')
+    dream_save_path = os.path.join(dream_folder, dream_ID, f'{tag}' + '-dream{dream}.pth.tar')
     load_path = None
     if load_model:
         load_path = os.path.join(folder, r_file) if r_file is not None else latest_path
@@ -1045,7 +1072,12 @@ def dreamer(args, logger=None, resume_preempt=False):
 
 
 
+    def change_ownership(folder):
+        for subdir, dirs, files in os.walk(folder):
+            os.chmod(subdir, 0o777)
 
+            for File in files:
+                os.chmod(os.path.join(subdir, File), 0o666)
 
 
 
@@ -1098,12 +1130,13 @@ def dreamer(args, logger=None, resume_preempt=False):
         action_sequence=aux
 
         dream_dict = {
-	    'state_sequence': state_sequence,
-	    'possition_sequence': possition_sequence,
-	    'reward_sequence': reward_sequence,
-	    'action_sequence': action_sequence
+            'state_sequence': state_sequence,
+            'possition_sequence': possition_sequence,
+            'reward_sequence': reward_sequence,
+            'action_sequence': action_sequence
         }
         save_dreams(np.random.randint(100), dream_dict)
+        change_ownership(dream_folder)
 
         return 0
 

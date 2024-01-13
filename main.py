@@ -208,11 +208,30 @@ def pretraining_wrapper(arguments):
     while not training_complete:
         operate_ptz(arguments)
         prepare_images()
-        #training_complete = run_jepa(arguments.fname, 'train')
-        #training_complete = run_jepa(arguments.fname, 'world_model')
+        training_complete = run_jepa(arguments.fname, 'train')
+
+def pretraining_world_model_wrapper(arguments):
+    training_complete = False
+    while not training_complete:
+        operate_ptz(arguments)
+        prepare_images()
+        training_complete = run_jepa(arguments.fname, 'world_model')
+
+def dreamer_wrapper(arguments):
+    training_complete = False
+    while not training_complete:
+        operate_ptz(arguments)
+        prepare_images()
         training_complete = run_jepa(arguments.fname, 'dreamer')
 
-  
+def lifelong_learning(arguments): 
+    while True:
+        operate_ptz(arguments)
+        prepare_images()
+        training_complete = run_jepa(arguments.fname, 'world_model')
+        training_complete = run_jepa(arguments.fname, 'dreamer')
+
+
 
 def main():
     parser = argparse.ArgumentParser("PTZ JEPA")
@@ -236,6 +255,10 @@ def main():
     parser.add_argument("-ip", "--cameraip",
                         help="The ip of the PTZ camera.",
                         type=str, default='')
+    parser.add_argument("-rm", "--run_mode",
+                        help="The mode to run the code.",
+			choices=['train', 'world_model_train', 'dream', 'lifelong'],
+                        type=str, default='train')
 
     # Joint Embedding Predictive Architecture (JEPA)
     parser.add_argument("-fn", "--fname", type=str,
@@ -246,7 +269,17 @@ def main():
 
     os.environ['CUDA_VISIBLE_DEVICES'] = str(0)
 
-    pretraining_wrapper(args)
+    if args.run_mode=='train':
+       pretraining_wrapper(args)
+    elif args.run_mode=='world_model_train':
+       pretraining_world_model_wrapper(args)
+    elif args.run_mode=='dream':
+       dreamer_wrapper(args)
+    elif args.run_mode=='lifelong':
+       lifelong_learning(args)
+
+
+
 
     print('DONE!')
 
