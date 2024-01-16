@@ -32,7 +32,7 @@ from source.datasets.ptz_dataset import PTZImageDataset
 # --
 #log_timings = True
 log_freq = 10
-checkpoint_freq = 50
+checkpoint_freq = 50000000000000
 # --
 
 def train(args, logger=None, resume_preempt=False):

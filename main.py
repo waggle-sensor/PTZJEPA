@@ -21,6 +21,8 @@ from PIL import Image
 from waggle.plugin import Plugin
 
 from source.run_jepa import run as run_jepa
+from source.run_rl import run as run_rl
+
 
 
 def set_random_position(camera, args):
@@ -224,11 +226,17 @@ def dreamer_wrapper(arguments):
         prepare_images()
         training_complete = run_jepa(arguments.fname, 'dreamer')
 
+def behavior_learning(arguments):
+    training_complete = False
+    while not training_complete:
+        training_complete = run_rl(arguments.fname, 'train_agent')
+
 def lifelong_learning(arguments): 
     while True:
         operate_ptz(arguments)
         prepare_images()
         training_complete = run_jepa(arguments.fname, 'world_model')
+        #TODO dreamer is taking all images to gream, it sould take just a subsample. I have to fix it
         training_complete = run_jepa(arguments.fname, 'dreamer')
 
 
@@ -257,7 +265,7 @@ def main():
                         type=str, default='')
     parser.add_argument("-rm", "--run_mode",
                         help="The mode to run the code.",
-			choices=['train', 'world_model_train', 'dream', 'lifelong'],
+			choices=['train', 'world_model_train', 'dream', 'agent_train', 'lifelong'],
                         type=str, default='train')
 
     # Joint Embedding Predictive Architecture (JEPA)
@@ -275,6 +283,8 @@ def main():
        pretraining_world_model_wrapper(args)
     elif args.run_mode=='dream':
        dreamer_wrapper(args)
+    elif args.run_mode=='agent_train':
+       behavior_learning(args)
     elif args.run_mode=='lifelong':
        lifelong_learning(args)
 
