@@ -117,6 +117,26 @@ def prepare_images():
 
 
 
+def prepare_dreams():
+    labels = []
+    files = glob.glob('./collected_imgs/*.jpg', recursive=True)
+    for f in files:
+        try:
+            image = Image.open(f)
+            image.save(f)
+            labels.append(os.path.splitext(os.path.basename(f))[0])
+        except OSError as e:
+            os.remove(f)
+            print("Error: %s : %s" % (f, e.strerror))
+
+    df = pd.DataFrame(labels)
+    df.to_csv('./labels', header=None, index=False)
+    print('Number of labels: ', df.size)
+
+
+
+
+
 def operate_ptz(args):
     if args.camerabrand==0:
         print('Importing Hanwha')
@@ -220,15 +240,16 @@ def pretraining_world_model_wrapper(arguments):
         training_complete = run_jepa(arguments.fname, 'world_model')
 
 def dreamer_wrapper(arguments):
-    training_complete = False
-    while not training_complete:
-        operate_ptz(arguments)
-        prepare_images()
-        training_complete = run_jepa(arguments.fname, 'dreamer')
+    operate_ptz(arguments)
+    prepare_images()
+    number_of_iterations = 10
+    for itr in range(number_of_iterations):
+        run_jepa(arguments.fname, 'dreamer')
 
 def behavior_learning(arguments):
     training_complete = False
     while not training_complete:
+        prepare_dreams()
         training_complete = run_rl(arguments.fname, 'train_agent')
 
 def lifelong_learning(arguments): 
@@ -236,7 +257,6 @@ def lifelong_learning(arguments):
         operate_ptz(arguments)
         prepare_images()
         training_complete = run_jepa(arguments.fname, 'world_model')
-        #TODO dreamer is taking all images to gream, it sould take just a subsample. I have to fix it
         training_complete = run_jepa(arguments.fname, 'dreamer')
 
 
