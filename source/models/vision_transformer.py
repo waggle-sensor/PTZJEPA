@@ -440,6 +440,120 @@ class VisionTransformerRSSM(nn.Module):
 
 
 
+class VisionTransformerAgent(nn.Module):
+    """ Vision Transformer """
+    def __init__(
+        self,
+        num_patches,
+        embed_dim=768,
+        predictor_embed_dim=384,
+        depth=6,
+        num_heads=12,
+        mlp_ratio=4.0,
+        qkv_bias=True,
+        qk_scale=None,
+        drop_rate=0.0,
+        attn_drop_rate=0.0,
+        drop_path_rate=0.0,
+        norm_layer=nn.LayerNorm,
+        init_std=0.02,
+	num_actions=16,
+        **kwargs
+    ):
+        super().__init__()
+        self.predictor_embed = nn.Linear(embed_dim, predictor_embed_dim, bias=True)
+        self.ptz_poss1_embed = nn.Linear(3, predictor_embed_dim, bias=True)
+        #self.ptz_poss2_embed = nn.Linear(3, predictor_embed_dim, bias=True)
+        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # stochastic depth decay rule
+        # --
+        self.predictor_pos_embed = nn.Parameter(torch.zeros(1, num_patches, predictor_embed_dim),
+                                                requires_grad=False)
+        predictor_pos_embed = get_2d_sincos_pos_embed(self.predictor_pos_embed.shape[-1],
+                                                      int(num_patches**.5),
+                                                      cls_token=False)
+        self.predictor_pos_embed.data.copy_(torch.from_numpy(predictor_pos_embed).float().unsqueeze(0))
+        # --
+        self.predictor_blocks = nn.ModuleList([
+            Block(
+                dim=predictor_embed_dim, num_heads=num_heads, mlp_ratio=mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
+                drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[i], norm_layer=norm_layer)
+            for i in range(depth)])
+        self.predictor_norm = norm_layer(predictor_embed_dim)
+        self.predictor_proj = nn.Linear(predictor_embed_dim, num_actions, bias=True)
+        # ------
+        self.init_std = init_std
+        self.apply(self._init_weights)
+        self.fix_init_weight()
+
+    def fix_init_weight(self):
+        def rescale(param, layer_id):
+            param.div_(math.sqrt(2.0 * layer_id))
+
+        for layer_id, layer in enumerate(self.predictor_blocks):
+            rescale(layer.attn.proj.weight.data, layer_id + 1)
+            rescale(layer.mlp.fc2.weight.data, layer_id + 1)
+
+    def _init_weights(self, m):
+        if isinstance(m, nn.Linear):
+            trunc_normal_(m.weight, std=self.init_std)
+            if isinstance(m, nn.Linear) and m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+        elif isinstance(m, nn.LayerNorm):
+            nn.init.constant_(m.bias, 0)
+            nn.init.constant_(m.weight, 1.0)
+        elif isinstance(m, nn.Conv2d):
+            trunc_normal_(m.weight, std=self.init_std)
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+
+    def forward(self, x, poss_x, poss):
+        assert (poss is not None) and (poss_x is not None), 'Cannot run predictor without mask indices'
+        B = x.shape[0]
+
+        # -- map from encoder-dim to pedictor-dim
+        x = self.predictor_embed(x)
+
+        # -- add positional embedding to x tokens
+        # -- affecting them by the first ptz position
+        x_pos_embed = self.predictor_pos_embed.repeat(B, 1, 1)
+
+        pred_ptz_poss1_embeds = self.ptz_poss1_embed(poss_x)
+        pred_ptz_poss1_tokens = pred_ptz_poss1_embeds.repeat(x_pos_embed.size(1), 1, 1)
+        pred_ptz_poss1_tokens = pred_ptz_poss1_tokens.permute(1, 0, 2)
+
+        x += pred_ptz_poss1_tokens
+        x += x_pos_embed
+
+        _, N_ctxt, D = x.shape
+
+        # -- concat second ptz position tokens to x
+        pos_embs = self.predictor_pos_embed.repeat(B, 1, 1)
+
+        #pred_ptz_poss2_embeds = self.ptz_poss2_embed(poss)
+        #pred_ptz_poss2_tokens = pred_ptz_poss2_embeds.repeat(pos_embs.size(1), 1, 1)
+        #pred_ptz_poss2_tokens = pred_ptz_poss2_tokens.permute(1, 0, 2)
+        #x = torch.cat([x, pred_ptz_poss2_tokens], dim=1)
+
+        # -- fwd prop
+        for blk in self.predictor_blocks:
+            x = blk(x)
+        x = self.predictor_norm(x)
+
+        # -- return preds for mask tokens
+        #x = x[:, N_ctxt:]
+        x = self.predictor_proj(x)
+
+        return x
+
+
+
+
+
+
+
+
+
+
 
 
 class VisionTransformer(nn.Module):
@@ -550,6 +664,13 @@ class VisionTransformer(nn.Module):
 
 
 
+
+
+def vit_agent(**kwargs):
+    model = VisionTransformerAgent(
+        mlp_ratio=4, qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6),
+        **kwargs)
+    return model
 
 
 def vit_rssm(**kwargs):
