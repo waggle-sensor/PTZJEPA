@@ -1041,7 +1041,7 @@ def dreamer(args, logger=None, resume_preempt=False):
 
     # -- init data-loader
     data = PTZImageDataset('./labels', './collected_imgs', transform=transform)
-    dataloader = DataLoader(data, batch_size=batch_size, shuffle=False)
+    dataloader = DataLoader(data, batch_size=batch_size, shuffle=True)
     ipe = len(dataloader)
 
 
@@ -1084,17 +1084,18 @@ def dreamer(args, logger=None, resume_preempt=False):
     def dream_step(inputs):
         images = inputs[0]
         possitions = inputs[1]
+        number_of_dreams = inputs[2]
 
-        state_sequence = []
-        possition_sequence = []
-        reward_sequence = []
-        action_sequence = []
+        state_sequences = []
+        position_sequences = []
+        reward_sequences = []
+        action_sequences = []
         # Step 1. Forward image through encoder
         internal_state = get_internal_representation(images)
         # Step 2. Iterate forwarding internal representations through the predictor
         for step in range(dream_length):
-            state_sequence.append(internal_state.unsqueeze(0))
-            possition_sequence.append(possitions.unsqueeze(0))
+            state_sequences.append(internal_state.unsqueeze(0))
+            position_sequences.append(possitions.unsqueeze(0))
 
             next_possitions, next_actions = get_next_random_possitions(possitions, actions)
             next_internal_state, next_reward = forward_internal_representation(internal_state, possitions, next_possitions)
@@ -1103,39 +1104,41 @@ def dreamer(args, logger=None, resume_preempt=False):
             possitions = next_possitions
             reward = next_reward.squeeze(-1)
             reward = reward.mean(-1)
-            reward_sequence.append(reward.unsqueeze(0))
-            action_sequence.append(next_actions.unsqueeze(0))
+            reward_sequences.append(reward.unsqueeze(0))
+            action_sequences.append(next_actions.unsqueeze(0))
 
-        state_sequence.append(internal_state.unsqueeze(0))
-        possition_sequence.append(possitions.unsqueeze(0))
+        state_sequences.append(internal_state.unsqueeze(0))
+        position_sequences.append(possitions.unsqueeze(0))
 
         B, D1, D2 = internal_state.shape
-        aux = torch.Tensor(len(state_sequence), B, D1, D2).to(device)
-        torch.cat(state_sequence, out=aux)
-        state_sequence=aux
+        aux = torch.Tensor(len(state_sequences), B, D1, D2).to(device)
+        torch.cat(state_sequences, out=aux)
+        state_sequences=aux
 
         B, D1 = possitions.shape
-        aux = torch.Tensor(len(possition_sequence), B, D1).to(device)
-        torch.cat(possition_sequence, out=aux)
-        possition_sequence=aux
+        aux = torch.Tensor(len(position_sequences), B, D1).to(device)
+        torch.cat(position_sequences, out=aux)
+        position_sequences=aux
 
         B = reward.shape[0]
-        aux = torch.Tensor(len(reward_sequence), B).to(device)
-        torch.cat(reward_sequence, out=aux)
-        reward_sequence=aux
+        aux = torch.Tensor(len(reward_sequences), B).to(device)
+        torch.cat(reward_sequences, out=aux)
+        reward_sequences=aux
 
         B = next_actions.shape[0]
-        aux = torch.Tensor(len(action_sequence), B).to(device)
-        torch.cat(action_sequence, out=aux)
-        action_sequence=aux
+        aux = torch.Tensor(len(action_sequences), B).to(device)
+        torch.cat(action_sequences, out=aux)
+        action_sequences=aux
 
-        dream_dict = {
-            'state_sequence': state_sequence,
-            'possition_sequence': possition_sequence,
-            'reward_sequence': reward_sequence,
-            'action_sequence': action_sequence
-        }
-        save_dreams(np.random.randint(100), dream_dict)
+        for idx in range(B):
+            dream_dict = {
+                'state_sequence': state_sequences[:,idx],
+                'possition_sequence': position_sequences[:,idx],
+                'reward_sequence': reward_sequences[:,idx],
+                'action_sequence': action_sequences[:,idx]
+            }
+            save_dreams(np.random.randint(number_of_dreams), dream_dict)
+
         change_ownership(dream_folder)
 
         return 0
@@ -1205,13 +1208,14 @@ def dreamer(args, logger=None, resume_preempt=False):
 
 
     # -- DREAM LOOP
-    for dream in range(number_of_dreams):
-        for itr, (imgs, labls) in enumerate(dataloader):
-            poss = get_position_from_label(labls)
-            imgs = imgs.to(device, non_blocking=True)
-            poss = poss.to(device, non_blocking=True)
-            
-            (dump), etime = gpu_timer(dream_step, arguments=[imgs, poss])
+    for itr, (imgs, labls) in enumerate(dataloader):
+        poss = get_position_from_label(labls)
+        imgs = imgs.to(device, non_blocking=True)
+        poss = poss.to(device, non_blocking=True)
+        
+        (dump), etime = gpu_timer(dream_step, arguments=[imgs, poss, number_of_dreams])
+        if itr > number_of_dreams:
+            break
 
 
     return True
