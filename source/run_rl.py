@@ -23,11 +23,12 @@ from source.utils.logging import (
 from source.helper import (
     load_checkpoint,
     init_model,
-    init_world_model,
+    init_agent_model,
     init_opt)
 from source.transforms import make_transforms
 
-from source.datasets.ptz_dataset import PTZImageDataset
+#from source.datasets.ptz_dataset import PTZImageDataset
+from source.datasets.dreams_dataset import DreamDataset
 
 # --
 #log_timings = True
@@ -98,11 +99,51 @@ def agent_model(args, logger=None, resume_preempt=False):
 
     # -- LOGGING
     folder = args['logging']['agent_folder']
+    dream_folder = args['logging']['dream_folder']
     ownership_folder = args['logging']['ownership_folder']
     tag = args['logging']['write_tag']
 
     # -- MEMORY
     memory_models = args['memory']['models']
+
+    # -- ACTIONS
+    action_short_left = args['action']['short']['left']
+    action_short_right = args['action']['short']['right']
+    action_short_left_up = args['action']['short']['left_up']
+    action_short_right_up = args['action']['short']['right_up']
+    action_short_left_down = args['action']['short']['left_down']
+    action_short_right_down = args['action']['short']['right_down']
+    action_short_up = args['action']['short']['up']
+    action_short_down = args['action']['short']['down']
+    action_short_zoom_in = args['action']['short']['zoom_in']
+    action_short_zoom_out = args['action']['short']['zoom_out']
+
+    action_long_left = args['action']['long']['left']
+    action_long_right = args['action']['long']['right']
+    action_long_up = args['action']['long']['up']
+    action_long_down = args['action']['long']['down']
+    action_long_zoom_in = args['action']['long']['zoom_in']
+    action_long_zoom_out = args['action']['long']['zoom_out']
+
+    actions={}
+    actions[0]=action_short_left
+    actions[1]=action_short_right
+    actions[2]=action_short_left_up
+    actions[3]=action_short_right_up
+    actions[4]=action_short_left_down
+    actions[5]=action_short_right_down
+    actions[6]=action_short_up
+    actions[7]=action_short_down
+    actions[8]=action_short_zoom_in
+    actions[9]=action_short_zoom_out
+    actions[10]=action_long_left
+    actions[11]=action_long_right
+    actions[12]=action_long_up
+    actions[13]=action_long_down
+    actions[14]=action_long_zoom_in
+    actions[15]=action_long_zoom_out
+
+    num_actions=len(actions.keys())
 
     if not os.path.exists(folder):
         os.makedirs(folder)
@@ -131,6 +172,115 @@ def agent_model(args, logger=None, resume_preempt=False):
     print('save_path ', save_path)
     print('latest_path ', latest_path)
     print('load_path ', load_path)
+
+    # -- make csv_logger
+    csv_logger = CSVLogger(log_file,
+                           ('%d', 'epoch'),
+                           ('%d', 'itr'),
+                           ('%.5f', 'loss'),
+                           ('%.5f', 'mask-A'),
+                           ('%.5f', 'mask-B'),
+                           ('%d', 'time (ms)'))
+
+    # -- init world model
+    encoder, predictor = init_agent_model(
+        device=device,
+        patch_size=patch_size,
+        crop_size=crop_size,
+        pred_depth=pred_depth,
+        pred_emb_dim=pred_emb_dim,
+        model_name=model_name,
+        num_actions=num_actions)
+    #target_encoder = copy.deepcopy(encoder)
+
+
+    # -- init data-loader
+    data = DreamDataset(dream_folder)
+    dataloader = DataLoader(data, batch_size=1, shuffle=True)
+    ipe = len(dataloader)
+
+
+
+
+
+
+    # -- init optimizer and scheduler
+    optimizer, scaler, scheduler, wd_scheduler = init_opt(
+        encoder=encoder,
+        predictor=predictor,
+        wd=wd,
+        final_wd=final_wd,
+        start_lr=start_lr,
+        ref_lr=lr,
+        final_lr=final_lr,
+        iterations_per_epoch=ipe,
+        warmup=warmup,
+        num_epochs=num_epochs,
+        ipe_scale=ipe_scale,
+        use_bfloat16=use_bfloat16)
+
+
+
+
+
+
+    #for p in target_encoder.parameters():
+    #    p.requires_grad = False
+
+
+    # -- momentum schedule
+    momentum_scheduler = (ema[0] + i*(ema[1]-ema[0])/(ipe*num_epochs*ipe_scale)
+                          for i in range(int(ipe*num_epochs*ipe_scale)+1))
+
+
+
+
+    start_epoch = 0
+    # -- load training checkpoint
+    if load_model:
+        _, predictor, _, _, _, _ = load_checkpoint(
+            device=device,
+            r_path=load_path,
+            predictor=predictor)
+
+
+    Transition = namedtuple('Transition',
+                            ('state', 'action', 'next_state', 'reward'))
+
+
+    class ReplayMemory(object):
+
+        def __init__(self, capacity):
+            self.memory = deque([], maxlen=capacity)
+
+        def push(self, *args):
+            """Save a transition"""
+            self.memory.append(Transition(*args))
+
+        def sample(self, batch_size):
+            return random.sample(self.memory, batch_size)
+
+        def __len__(self):
+            return len(self.memory)
+
+
+
+
+    print('->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->')
+    print('->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->')
+    print('->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->')
+    print('->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->')
+    print('->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->')
+    print('->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->')
+    print('HHHHHHHHHHHHHHHHHEEEEEEEEEEEEEEYYYYYYYYYYYYYYYYYYY______IIIIIIIAMMMMMMMMMHHHHHHHHHHHHHHEEEEEEEERRREE')
+    print('->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->')
+    print('->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->')
+    print('->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->')
+    print('->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->')
+    print('->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->')
+    print('->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->')
+
+
 
 
 
