@@ -25,6 +25,9 @@ from source.helper import (
     init_model,
     init_agent_model,
     init_opt)
+
+from source.rl_helper import ReplayMemory, Transition
+
 from source.transforms import make_transforms
 
 #from source.datasets.ptz_dataset import PTZImageDataset
@@ -163,15 +166,20 @@ def agent_model(args, logger=None, resume_preempt=False):
     # -- log/checkpointing paths
     log_file = os.path.join(folder, f'{tag}.csv')
     save_path = os.path.join(folder, f'{tag}' + '-ep{epoch}.pth.tar')
-    latest_path = os.path.join(folder, f'{tag}-latest.pth.tar')
-    load_path = None
+    policy_latest_path = os.path.join(folder, f'{tag}-policy_latest.pth.tar')
+    target_latest_path = os.path.join(folder, f'{tag}-target_latest.pth.tar')
+    policy_load_path = None
+    target_load_path = None
     if load_model:
-        load_path = os.path.join(folder, r_file) if r_file is not None else latest_path
+        policy_load_path = os.path.join(folder, r_file) if r_file is not None else policy_latest_path
+        target_load_path = os.path.join(folder, r_file) if r_file is not None else target_latest_path
 
     print('log_file ', log_file)
     print('save_path ', save_path)
-    print('latest_path ', latest_path)
-    print('load_path ', load_path)
+    print('policy_latest_path ', policy_latest_path)
+    print('target_latest_path ', target_latest_path)
+    print('policy_load_path ', policy_load_path)
+    print('target_load_path ', target_load_path)
 
     # -- make csv_logger
     csv_logger = CSVLogger(log_file,
@@ -183,7 +191,7 @@ def agent_model(args, logger=None, resume_preempt=False):
                            ('%d', 'time (ms)'))
 
     # -- init world model
-    encoder, predictor = init_agent_model(
+    encoder, policy_predictor = init_agent_model(
         device=device,
         patch_size=patch_size,
         crop_size=crop_size,
@@ -191,12 +199,12 @@ def agent_model(args, logger=None, resume_preempt=False):
         pred_emb_dim=pred_emb_dim,
         model_name=model_name,
         num_actions=num_actions)
-    #target_encoder = copy.deepcopy(encoder)
+    target_predictor = copy.deepcopy(policy_predictor)
 
 
     # -- init data-loader
     data = DreamDataset(dream_folder)
-    dataloader = DataLoader(data, batch_size=1, shuffle=True)
+    dataloader = DataLoader(data, batch_size=batch_size, shuffle=True)
     ipe = len(dataloader)
 
 
@@ -207,7 +215,7 @@ def agent_model(args, logger=None, resume_preempt=False):
     # -- init optimizer and scheduler
     optimizer, scaler, scheduler, wd_scheduler = init_opt(
         encoder=encoder,
-        predictor=predictor,
+        predictor=policy_predictor,
         wd=wd,
         final_wd=final_wd,
         start_lr=start_lr,
@@ -224,8 +232,8 @@ def agent_model(args, logger=None, resume_preempt=False):
 
 
 
-    #for p in target_encoder.parameters():
-    #    p.requires_grad = False
+    for p in target_predictor.parameters():
+        p.requires_grad = False
 
 
     # -- momentum schedule
@@ -238,31 +246,76 @@ def agent_model(args, logger=None, resume_preempt=False):
     start_epoch = 0
     # -- load training checkpoint
     if load_model:
-        _, predictor, _, _, _, _ = load_checkpoint(
+        _, policy_predictor, _, optimizer, scaler, start_epoch = load_checkpoint(
             device=device,
-            r_path=load_path,
-            predictor=predictor)
+            r_path=policy_load_path,
+            predictor=policy_predictor,
+            opt=optimizer,
+            scaler=scaler)
+
+        _, target_predictor, _, _, _, _ = load_checkpoint(
+            device=device,
+            r_path=target_load_path,
+            predictor=target_predictor)
+
+        for _ in range(start_epoch*ipe):
+            scheduler.step()
+            wd_scheduler.step()
+            next(momentum_scheduler)
 
 
-    Transition = namedtuple('Transition',
-                            ('state', 'action', 'next_state', 'reward'))
+
+    def optimize_model():
+        if len(memory) < batch_size:
+            return
+        transitions = memory.sample(batch_size)
 
 
-    class ReplayMemory(object):
 
-        def __init__(self, capacity):
-            self.memory = deque([], maxlen=capacity)
 
-        def push(self, *args):
-            """Save a transition"""
-            self.memory.append(Transition(*args))
 
-        def sample(self, batch_size):
-            return random.sample(self.memory, batch_size)
 
-        def __len__(self):
-            return len(self.memory)
 
+
+    # -- TRAINING LOOP
+    memory = ReplayMemory(10000)
+    TAU=0.5
+    loss_values = []
+    for epoch in range(start_epoch, num_epochs):
+        logger.info('Epoch %d' % (epoch + 1))
+
+        loss_meter = AverageMeter()
+        time_meter = AverageMeter()
+
+        for itr, episodes in enumerate(dataloader):
+            for state_sequence, position_sequence, reward_sequence, action_sequence in zip(episodes['state_sequence'], episodes['possition_sequence'], episodes['reward_sequence'], episodes['action_sequence']):
+                for step, (state, position) in enumerate(zip(state_sequence, position_sequence)):
+                    print(step)
+
+                    if step < action_sequence.shape[0]:
+                        # pick next action
+                        action=action_sequence[step]
+                        
+                        # next state and position
+                        next_state=state_sequence[step+1]
+                        next_position=position_sequence[step+1]
+
+                        # reward
+                        reward=reward_sequence[step]
+
+                        # Store the transition in memory
+                        memory.push(state, next_state, action, next_state, next_position, reward)
+
+                        # Perform one step of the optimization (on the policy network)
+                        optimize_model()
+
+                        # Soft update of the target network's weights
+                        # θ′ ← τ θ + (1 −τ )θ′
+                        target_predictor_state_dict = target_predictor.state_dict()
+                        policy_predictor_state_dict = policy_predictor.state_dict()
+                        for key in policy_predictor_state_dict:
+                            target_predictor_state_dict[key] = policy_predictor_state_dict[key]*TAU + target_predictor_state_dict[key]*(1-TAU)
+                        target_predictor.load_state_dict(target_predictor_state_dict)
 
 
 
