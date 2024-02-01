@@ -1,5 +1,6 @@
 import os
 import pandas as pd
+import torch
 from torchvision.io import read_image
 from PIL import Image 
 from torch.utils.data import Dataset
@@ -17,8 +18,8 @@ class DreamDataset(Dataset):
         return len(self.dream_paths)
 
     def __getitem__(self, idx):
-        dream_path = self.img_labels[idx]
-        dream = torch.open(dream_path)
+        dream_path = self.dream_paths[idx]
+        dream = torch.load(dream_path)
         return dream
 
 
