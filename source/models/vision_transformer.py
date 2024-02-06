@@ -457,7 +457,7 @@ class VisionTransformerAgent(nn.Module):
         drop_path_rate=0.0,
         norm_layer=nn.LayerNorm,
         init_std=0.02,
-	num_actions=16,
+        num_actions=16,
         **kwargs
     ):
         super().__init__()
@@ -506,8 +506,10 @@ class VisionTransformerAgent(nn.Module):
             if m.bias is not None:
                 nn.init.constant_(m.bias, 0)
 
-    def forward(self, x, poss_x, poss):
-        assert (poss is not None) and (poss_x is not None), 'Cannot run predictor without mask indices'
+    #def forward(self, x, poss_x, poss):
+    def forward(self, x, poss_x):
+        #assert (poss is not None) and (poss_x is not None), 'Cannot run predictor without mask indices'
+        assert (poss_x is not None), 'Cannot run predictor without mask indices'
         B = x.shape[0]
 
         # -- map from encoder-dim to pedictor-dim
@@ -527,7 +529,7 @@ class VisionTransformerAgent(nn.Module):
         _, N_ctxt, D = x.shape
 
         # -- concat second ptz position tokens to x
-        pos_embs = self.predictor_pos_embed.repeat(B, 1, 1)
+        #pos_embs = self.predictor_pos_embed.repeat(B, 1, 1)
 
         #pred_ptz_poss2_embeds = self.ptz_poss2_embed(poss)
         #pred_ptz_poss2_tokens = pred_ptz_poss2_embeds.repeat(pos_embs.size(1), 1, 1)
@@ -541,7 +543,7 @@ class VisionTransformerAgent(nn.Module):
 
         # -- return preds for mask tokens
         #x = x[:, N_ctxt:]
-        x = self.predictor_proj(x)
+        x = self.predictor_proj(x).mean(1)
 
         return x
 
