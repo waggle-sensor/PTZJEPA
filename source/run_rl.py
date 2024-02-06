@@ -9,6 +9,7 @@ import yaml
 import pprint
 import torch
 import torch.nn.functional as F
+#import torch.nn.SmoothL1Loss as S1L
 
 from torch.utils.data import DataLoader
 
@@ -264,11 +265,94 @@ def agent_model(args, logger=None, resume_preempt=False):
             next(momentum_scheduler)
 
 
+    def tuple_of_tensors_to_tensor(tuple_of_tensors):
+        return  torch.stack(list(tuple_of_tensors), dim=0)
 
-    def optimize_model():
+    def optimize_model(argument=None):
+        GAMMA = 0.99
+        _new_lr = scheduler.step()
+        _new_wd = wd_scheduler.step()
+        # --
+
+        print(len(memory))
         if len(memory) < batch_size:
             return
         transitions = memory.sample(batch_size)
+
+        # Transpose the batch (see https://stackoverflow.com/a/19343/3343043 for
+        # detailed explanation). This converts batch-array of Transitions
+        # to Transition of batch-arrays.
+        batch = Transition(*zip(*transitions))
+
+        state_batch = tuple_of_tensors_to_tensor(batch.state)
+        position_batch = tuple_of_tensors_to_tensor(batch.position)
+        action_batch = tuple_of_tensors_to_tensor(batch.action)
+        next_state_batch = tuple_of_tensors_to_tensor(batch.next_state)
+        next_position_batch = tuple_of_tensors_to_tensor(batch.next_position)
+        reward_batch = tuple_of_tensors_to_tensor(batch.reward)
+
+        # Compute Q(s_t, a) - the model computes Q(s_t), then we select the
+        # columns of actions taken. These are the actions which would've been taken
+        # for each batch state according to policy_net
+        action_batch=action_batch.round().to(torch.int64).view(-1, 1)
+        state_action_values = torch.gather(policy_predictor(state_batch, position_batch), 1, action_batch)
+
+        # Compute V(s_{t+1}) for all next states.
+        # Expected values of actions for non_final_next_states are computed based
+        # on the "older" target_net; selecting their best reward with max(1).values
+        # This is merged based on the mask, such that we'll have either the expected
+        # state value or 0 in case the state was final.
+        with torch.no_grad():
+            next_state_values = target_predictor(next_state_batch, next_position_batch).max(1).values
+
+        #print(state_action_values)
+        #print(next_state_values)
+
+        # Compute the expected Q values
+        expected_state_action_values = (next_state_values * GAMMA) + reward_batch
+
+        loss = loss_fn(state_action_values, expected_state_action_values)
+
+        # Backward & step
+        loss.backward()
+        optimizer.step()
+        grad_stats = grad_logger(policy_predictor.named_parameters())
+        optimizer.zero_grad()
+
+        return (float(loss), _new_lr, _new_wd, grad_stats)
+
+    # Compute Huber loss
+    def loss_fn(state_action_values, expected_state_action_values):
+        criterion = torch.nn.SmoothL1Loss()
+        loss = criterion(state_action_values, expected_state_action_values.unsqueeze(1))
+
+        return loss
+
+
+
+    # -- Logging
+    def log_stats(itr, epoch, loss, etime):
+        csv_logger.log(epoch + 1, itr, loss, etime)
+        if (itr % log_freq == 0) or np.isnan(loss) or np.isinf(loss):
+            logger.info('[%d, %5d] loss: %.3f '
+                        '[wd: %.2e] [lr: %.2e] '
+                        '[mem: %.2e] '
+                        '(%.1f ms)'
+                        % (epoch + 1, itr,
+                           loss_meter.avg,
+                           _new_wd,
+                           _new_lr,
+                           torch.cuda.max_memory_allocated() / 1024.**2,
+                           time_meter.avg))
+
+            if grad_stats is not None:
+                logger.info('[%d, %5d] grad_stats: [%.2e %.2e] (%.2e, %.2e)'
+                            % (epoch + 1, itr,
+                               grad_stats.first_layer,
+                               grad_stats.last_layer,
+                               grad_stats.min,
+                               grad_stats.max))
+
 
 
 
@@ -290,7 +374,7 @@ def agent_model(args, logger=None, resume_preempt=False):
         for itr, episodes in enumerate(dataloader):
             for state_sequence, position_sequence, reward_sequence, action_sequence in zip(episodes['state_sequence'], episodes['possition_sequence'], episodes['reward_sequence'], episodes['action_sequence']):
                 for step, (state, position) in enumerate(zip(state_sequence, position_sequence)):
-                    print(step)
+                    #print(step)
 
                     if step < action_sequence.shape[0]:
                         # pick next action
@@ -304,18 +388,28 @@ def agent_model(args, logger=None, resume_preempt=False):
                         reward=reward_sequence[step]
 
                         # Store the transition in memory
-                        memory.push(state, next_state, action, next_state, next_position, reward)
+                        memory.push(state, position, action, next_state, next_position, reward)
 
                         # Perform one step of the optimization (on the policy network)
-                        optimize_model()
+                        #optimize_model()
 
-                        # Soft update of the target network's weights
-                        # θ′ ← τ θ + (1 −τ )θ′
-                        target_predictor_state_dict = target_predictor.state_dict()
-                        policy_predictor_state_dict = policy_predictor.state_dict()
-                        for key in policy_predictor_state_dict:
-                            target_predictor_state_dict[key] = policy_predictor_state_dict[key]*TAU + target_predictor_state_dict[key]*(1-TAU)
-                        target_predictor.load_state_dict(target_predictor_state_dict)
+                        auxiliary, etime = gpu_timer(optimize_model, arguments=[])
+                        if auxiliary!=None:
+                            (loss, _new_lr, _new_wd, grad_stats) = auxiliary
+                            loss_meter.update(loss)
+                            time_meter.update(etime)
+                            log_stats(itr, epoch, loss, etime)
+
+                            assert not np.isnan(loss), 'loss is nan'
+
+
+                            # Soft update of the target network's weights
+                            # θ′ ← τ θ + (1 −τ )θ′
+                            target_predictor_state_dict = target_predictor.state_dict()
+                            policy_predictor_state_dict = policy_predictor.state_dict()
+                            for key in policy_predictor_state_dict:
+                                target_predictor_state_dict[key] = policy_predictor_state_dict[key]*TAU + target_predictor_state_dict[key]*(1-TAU)
+                            target_predictor.load_state_dict(target_predictor_state_dict)
 
 
 
