@@ -110,6 +110,9 @@ def agent_model(args, logger=None, resume_preempt=False):
     # -- MEMORY
     memory_models = args['memory']['models']
 
+    # -- DREAMER
+    dream_length = args['dreamer']['dream_length']
+
     # -- ACTIONS
     action_short_left = args['action']['short']['left']
     action_short_right = args['action']['short']['right']
@@ -165,10 +168,10 @@ def agent_model(args, logger=None, resume_preempt=False):
 
 
     # -- log/checkpointing paths
-    log_file = os.path.join(folder, f'{tag}.csv')
-    save_path = os.path.join(folder, f'{tag}' + '-ep{epoch}.pth.tar')
-    policy_latest_path = os.path.join(folder, f'{tag}-policy_latest.pth.tar')
-    target_latest_path = os.path.join(folder, f'{tag}-target_latest.pth.tar')
+    log_file = os.path.join(folder, model_ID, f'{tag}.csv')
+    save_path = os.path.join(folder, model_ID, f'{tag}' + '-ep{epoch}.pth.tar')
+    policy_latest_path = os.path.join(folder, model_ID, f'{tag}-policy_latest.pth.tar')
+    target_latest_path = os.path.join(folder, model_ID, f'{tag}-target_latest.pth.tar')
     policy_load_path = None
     target_load_path = None
     if load_model:
@@ -206,7 +209,7 @@ def agent_model(args, logger=None, resume_preempt=False):
     # -- init data-loader
     data = DreamDataset(dream_folder)
     dataloader = DataLoader(data, batch_size=batch_size, shuffle=True)
-    ipe = len(dataloader)
+    ipe = len(dataloader)*dream_length
 
 
 
@@ -265,19 +268,46 @@ def agent_model(args, logger=None, resume_preempt=False):
             next(momentum_scheduler)
 
 
+
+    def save_checkpoint(epoch):
+        policy_save_dict = {
+            'predictor': policy_predictor.state_dict(),
+            'opt': optimizer.state_dict(),
+            'scaler': None if scaler is None else scaler.state_dict(),
+            'epoch': epoch,
+            'loss': loss_meter.avg,
+            'batch_size': batch_size,
+            'lr': lr
+        }
+
+        target_save_dict = {
+            'predictor': target_predictor.state_dict(),
+            'loss': loss_meter.avg,
+            'batch_size': batch_size,
+            'lr': lr
+        }
+        torch.save(policy_save_dict, policy_latest_path)
+        torch.save(target_save_dict, target_latest_path)
+        if (epoch + 1) % checkpoint_freq == 0:
+            torch.save(policy_save_dict, save_path.format(epoch=f'{epoch + 1}'))
+
+
+
+
     def tuple_of_tensors_to_tensor(tuple_of_tensors):
         return  torch.stack(list(tuple_of_tensors), dim=0)
 
-    def optimize_model(argument=None):
+    def optimize_model(transitions):
         GAMMA = 0.99
         _new_lr = scheduler.step()
         _new_wd = wd_scheduler.step()
         # --
 
-        print(len(memory))
-        if len(memory) < batch_size:
-            return
-        transitions = memory.sample(batch_size)
+        #print('HEYYY HERE! ', len(memory))
+        #if len(memory) < batch_size:
+        #    return
+        #transitions = memory.sample(batch_size)
+        #transitions = memory.sample(1)
 
         # Transpose the batch (see https://stackoverflow.com/a/19343/3343043 for
         # detailed explanation). This converts batch-array of Transitions
@@ -321,6 +351,9 @@ def agent_model(args, logger=None, resume_preempt=False):
 
         return (float(loss), _new_lr, _new_wd, grad_stats)
 
+
+
+
     # Compute Huber loss
     def loss_fn(state_action_values, expected_state_action_values):
         criterion = torch.nn.SmoothL1Loss()
@@ -356,30 +389,53 @@ def agent_model(args, logger=None, resume_preempt=False):
 
 
 
+    def detect_plateau(loss_values, patience=5, threshold=1e-4):
+        """
+        Detects plateauing behavior in a loss curve.
+
+        Parameters:
+            loss_values (list or numpy array): List or array containing the loss values over epochs.
+            patience (int): Number of epochs with no improvement to wait before stopping.
+            threshold (float): Threshold for the change in loss to be considered as plateauing.
+
+        Returns:
+            plateaued (bool): True if the loss has plateaued, False otherwise.
+        """
+        if len(loss_values) < patience + 1:
+            return False  # Not enough data to detect plateauing
+
+        recent_losses = loss_values[-patience:]
+        mean_loss = np.mean(recent_losses)
+        current_loss = loss_values[-1]
+
+        if np.abs(current_loss - mean_loss) < threshold:
+            return True  # Loss has plateaued
+        else:
+            return False  # Loss has not plateaued
 
 
 
 
 
-    # -- TRAINING LOOP
-    memory = ReplayMemory(10000)
-    TAU=0.5
-    loss_values = []
-    for epoch in range(start_epoch, num_epochs):
-        logger.info('Epoch %d' % (epoch + 1))
+    def change_ownership(folder):
+        for subdir, dirs, files in os.walk(folder):
+            os.chmod(subdir, 0o777)
 
-        loss_meter = AverageMeter()
-        time_meter = AverageMeter()
+            for File in files:
+                os.chmod(os.path.join(subdir, File), 0o666)
 
+
+
+
+    def prepare_data(dataloader, size):
+        memory = ReplayMemory(size)
         for itr, episodes in enumerate(dataloader):
             for state_sequence, position_sequence, reward_sequence, action_sequence in zip(episodes['state_sequence'], episodes['possition_sequence'], episodes['reward_sequence'], episodes['action_sequence']):
                 for step, (state, position) in enumerate(zip(state_sequence, position_sequence)):
-                    #print(step)
-
                     if step < action_sequence.shape[0]:
                         # pick next action
                         action=action_sequence[step]
-                        
+ 
                         # next state and position
                         next_state=state_sequence[step+1]
                         next_position=position_sequence[step+1]
@@ -390,27 +446,66 @@ def agent_model(args, logger=None, resume_preempt=False):
                         # Store the transition in memory
                         memory.push(state, position, action, next_state, next_position, reward)
 
-                        # Perform one step of the optimization (on the policy network)
-                        #optimize_model()
+                        if len(memory) > 0.9*size:
+                            return memory
 
-                        auxiliary, etime = gpu_timer(optimize_model, arguments=[])
-                        if auxiliary!=None:
-                            (loss, _new_lr, _new_wd, grad_stats) = auxiliary
-                            loss_meter.update(loss)
-                            time_meter.update(etime)
-                            log_stats(itr, epoch, loss, etime)
-
-                            assert not np.isnan(loss), 'loss is nan'
+        return memory
 
 
-                            # Soft update of the target network's weights
-                            # θ′ ← τ θ + (1 −τ )θ′
-                            target_predictor_state_dict = target_predictor.state_dict()
-                            policy_predictor_state_dict = policy_predictor.state_dict()
-                            for key in policy_predictor_state_dict:
-                                target_predictor_state_dict[key] = policy_predictor_state_dict[key]*TAU + target_predictor_state_dict[key]*(1-TAU)
-                            target_predictor.load_state_dict(target_predictor_state_dict)
 
+
+
+
+    # -- TRAINING LOOP
+    #memory = ReplayMemory(100000)
+    print('PREPARING DATA...')
+    memory = prepare_data(dataloader, ipe)
+    print('HEYYY HERE! ', len(memory))
+    print('DONE!')
+    TAU=0.001
+    loss_values = []
+    for epoch in range(start_epoch, num_epochs):
+        logger.info('Epoch %d' % (epoch + 1))
+
+        loss_meter = AverageMeter()
+        time_meter = AverageMeter()
+
+        for itr in range(len(memory)):
+            # Perform one step of the optimization (on the policy network)
+            #optimize_model()
+            transitions = memory.sample(batch_size)
+
+            #print('transitions ', transitions)
+            auxiliary, etime = gpu_timer(optimize_model, arguments=transitions)
+            if auxiliary==None:
+                print('WHATTTTTT ...')
+                #print(len(memory))
+                #print(auxiliary)
+                return False
+            else:
+                (loss, _new_lr, _new_wd, grad_stats)=auxiliary
+
+            loss_meter.update(loss)
+            time_meter.update(etime)
+            log_stats(itr, epoch, loss, etime)
+
+            assert not np.isnan(loss), 'loss is nan'
+
+            # Soft update of the target network's weights
+            # θ′ ← τ θ + (1 −τ )θ′
+            target_predictor_state_dict = target_predictor.state_dict()
+            policy_predictor_state_dict = policy_predictor.state_dict()
+            for key in policy_predictor_state_dict:
+                target_predictor_state_dict[key] = policy_predictor_state_dict[key]*TAU + target_predictor_state_dict[key]*(1-TAU)
+            target_predictor.load_state_dict(target_predictor_state_dict)
+
+        # -- Save Checkpoint after every epoch
+        logger.info('avg. loss %.3f' % loss_meter.avg)
+        loss_values.append(loss_meter.avg)
+        save_checkpoint(epoch+1)
+        change_ownership(ownership_folder)
+        if detect_plateau(loss_values, patience=patience, threshold=threshold):
+            return False
 
 
     print('->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->')
