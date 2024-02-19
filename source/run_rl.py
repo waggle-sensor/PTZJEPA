@@ -66,7 +66,7 @@ def agent_model(args, logger=None, resume_preempt=False):
     use_color_distortion = args['data']['use_color_distortion']
     color_jitter = args['data']['color_jitter_strength']
     # --
-    batch_size = args['data']['batch_size']
+    batch_size = args['data']['rl_batch_size']
     pin_mem = args['data']['pin_mem']
     num_workers = args['data']['num_workers']
     root_path = args['data']['root_path']
@@ -87,19 +87,20 @@ def agent_model(args, logger=None, resume_preempt=False):
     # --
 
     # -- OPTIMIZATION
+    TAU = args['optimization']['TAU']
     ema = args['optimization']['ema']
     ipe_scale = args['optimization']['ipe_scale']  # scheduler scale factor (def: 1.0)
     wd = float(args['optimization']['weight_decay'])
     final_wd = float(args['optimization']['final_weight_decay'])
-    num_epochs = args['optimization']['epochs']
-    warmup = args['optimization']['warmup']
+    num_epochs = args['optimization']['rl_epochs']
+    warmup = args['optimization']['rl_warmup']
     start_lr = args['optimization']['start_lr']
     lr = args['optimization']['lr']
     final_lr = args['optimization']['final_lr']
 
     # -- PLATEAU
-    patience = args['plateau']['patience']
-    threshold = args['plateau']['threshold']
+    patience = args['plateau']['rl_patience']
+    threshold = args['plateau']['rl_threshold']
 
     # -- LOGGING
     folder = args['logging']['agent_folder']
@@ -108,7 +109,7 @@ def agent_model(args, logger=None, resume_preempt=False):
     tag = args['logging']['write_tag']
 
     # -- MEMORY
-    memory_models = args['memory']['models']
+    memory_models = args['memory']['rl_models']
 
     # -- DREAMER
     dream_length = args['dreamer']['dream_length']
@@ -303,12 +304,6 @@ def agent_model(args, logger=None, resume_preempt=False):
         _new_wd = wd_scheduler.step()
         # --
 
-        #print('HEYYY HERE! ', len(memory))
-        #if len(memory) < batch_size:
-        #    return
-        #transitions = memory.sample(batch_size)
-        #transitions = memory.sample(1)
-
         # Transpose the batch (see https://stackoverflow.com/a/19343/3343043 for
         # detailed explanation). This converts batch-array of Transitions
         # to Transition of batch-arrays.
@@ -334,9 +329,6 @@ def agent_model(args, logger=None, resume_preempt=False):
         # state value or 0 in case the state was final.
         with torch.no_grad():
             next_state_values = target_predictor(next_state_batch, next_position_batch).max(1).values
-
-        #print(state_action_values)
-        #print(next_state_values)
 
         # Compute the expected Q values
         expected_state_action_values = (next_state_values * GAMMA) + reward_batch
@@ -460,9 +452,7 @@ def agent_model(args, logger=None, resume_preempt=False):
     #memory = ReplayMemory(100000)
     print('PREPARING DATA...')
     memory = prepare_data(dataloader, ipe)
-    print('HEYYY HERE! ', len(memory))
     print('DONE!')
-    TAU=0.001
     loss_values = []
     for epoch in range(start_epoch, num_epochs):
         logger.info('Epoch %d' % (epoch + 1))
@@ -475,16 +465,7 @@ def agent_model(args, logger=None, resume_preempt=False):
             #optimize_model()
             transitions = memory.sample(batch_size)
 
-            #print('transitions ', transitions)
-            auxiliary, etime = gpu_timer(optimize_model, arguments=transitions)
-            if auxiliary==None:
-                print('WHATTTTTT ...')
-                #print(len(memory))
-                #print(auxiliary)
-                return False
-            else:
-                (loss, _new_lr, _new_wd, grad_stats)=auxiliary
-
+            (loss, _new_lr, _new_wd, grad_stats), etime = gpu_timer(optimize_model, arguments=transitions)
             loss_meter.update(loss)
             time_meter.update(etime)
             log_stats(itr, epoch, loss, etime)
@@ -506,26 +487,6 @@ def agent_model(args, logger=None, resume_preempt=False):
         change_ownership(ownership_folder)
         if detect_plateau(loss_values, patience=patience, threshold=threshold):
             return False
-
-
-    print('->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->')
-    print('->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->')
-    print('->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->')
-    print('->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->')
-    print('->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->')
-    print('->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->')
-    print('HHHHHHHHHHHHHHHHHEEEEEEEEEEEEEEYYYYYYYYYYYYYYYYYYY______IIIIIIIAMMMMMMMMMHHHHHHHHHHHHHHEEEEEEEERRREE')
-    print('->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->')
-    print('->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->')
-    print('->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->')
-    print('->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->')
-    print('->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->')
-    print('->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->->')
-
-
-
-
-
 
 
     return True
