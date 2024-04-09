@@ -291,7 +291,8 @@ def main():
     # Joint Embedding Predictive Architecture (JEPA)
     parser.add_argument("-fn", "--fname", type=str,
                         help="name of config file to load",
-                        default='/percistence/configs/in1k_vith14_ep300.yaml')
+                        default='./configs/Config_file.yaml')
+                        #default='/percistence/configs/in1k_vith14_ep300.yaml')
 
     args = parser.parse_args()
 

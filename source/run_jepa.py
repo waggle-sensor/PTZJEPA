@@ -503,9 +503,7 @@ def world_model(args, logger=None, resume_preempt=False):
     with open(dump, 'w') as f:
         yaml.dump(args, f)
     # ----------------------------------------------------------------------- #
-
-
-
+    
     # -- log/checkpointing paths
     log_file = os.path.join(folder, model_ID, f'{tag}.csv')
     save_path = os.path.join(folder, model_ID, f'{tag}' + '-ep{epoch}.pth.tar')
@@ -807,6 +805,7 @@ def world_model(args, logger=None, resume_preempt=False):
 
 
     # -- TRAINING LOOP
+    change_ownership(os.path.join(folder, model_ID))
     loss_values = []
     for epoch in range(start_epoch, num_epochs):
         logger.info('Epoch %d' % (epoch + 1))
@@ -825,6 +824,7 @@ def world_model(args, logger=None, resume_preempt=False):
             loss_meter.update(loss)
             time_meter.update(etime)
             log_stats(itr, epoch, loss, etime)
+            print(loss)
 
             assert not np.isnan(loss), 'loss is nan'
 
@@ -837,9 +837,9 @@ def world_model(args, logger=None, resume_preempt=False):
             return False
 
 
-    if start_epoch == num_epochs:
-        PATH, FILE = os.path.split(latest_path)
-        shutil.rmtree(PATH)
+    #if start_epoch == num_epochs:
+    #    PATH, FILE = os.path.split(latest_path)
+    #    shutil.rmtree(PATH)
 
     return True
 
