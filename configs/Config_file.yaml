@@ -15,6 +15,7 @@ data:
   use_horizontal_flip: false
 logging:
   folder: /persistence/world_models/
+  dream_folder: /persistence/dreams/
   ownership_folder: /persistence
   write_tag: jepa
 mask:
@@ -45,7 +46,7 @@ optimization:
   ema:
   - 0.996
   - 1.0
-  epochs: 10
+  epochs: 100
   #epochs: 300
   final_lr: 1.0e-06
   final_weight_decay: 0.4
@@ -58,7 +59,76 @@ plateau:
   patience: 10
   threshold: 0.1
 memory:
-  models: 1
+  models: 100
   memory_models: 1
-
-
+  dreams: 10
+dreamer:
+  number_of_dreams: 20
+  dream_length: 10
+action:
+  short:
+    left:
+    - -0.1
+    - 0.0
+    - 0.0
+    right:
+    - 0.1
+    - 0.0
+    - 0.0
+    left_up:
+    - -0.1
+    - 0.1
+    - 0.0
+    right_up:
+    - 0.1
+    - 0.1
+    - 0.0
+    left_down:
+    - -0.1
+    - -0.1
+    - 0.0
+    right_down:
+    - 0.1
+    - -0.1
+    - 0.0
+    up:
+    - 0.0
+    - 0.1
+    - 0.0
+    down:
+    - 0.0
+    - -0.1
+    - 0.0
+    zoom_in:
+    - 0.0
+    - 0.0
+    - 0.1
+    zoom_out:
+    - 0.0
+    - 0.0
+    - -0.1
+  long:
+    left:
+    - -1.0
+    - 0.0
+    - 0.0
+    right:
+    - 1.0
+    - 0.0
+    - 0.0
+    up:
+    - 0.0
+    - 1.0
+    - 0.0
+    down:
+    - 0.0
+    - -1.0
+    - 0.0
+    zoom_in:
+    - 0.0
+    - 0.0
+    - 0.2
+    zoom_out:
+    - 0.0
+    - 0.0
+    - -0.2
