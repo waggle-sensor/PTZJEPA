@@ -837,9 +837,9 @@ def world_model(args, logger=None, resume_preempt=False):
             return False
 
 
-    #if start_epoch == num_epochs:
-    #    PATH, FILE = os.path.split(latest_path)
-    #    shutil.rmtree(PATH)
+    if start_epoch == num_epochs:
+        PATH, FILE = os.path.split(latest_path)
+        shutil.rmtree(PATH)
 
     return True
 
