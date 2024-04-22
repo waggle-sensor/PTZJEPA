@@ -12,6 +12,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+from torch.utils.checkpoint import checkpoint
+
 from source.utils.tensors import (
     trunc_normal_,
     repeat_interleave_batch
@@ -311,7 +313,9 @@ class VisionTransformerPredictor(nn.Module):
 
         # -- fwd prop
         for blk in self.predictor_blocks:
+            #x = checkpoint(blk, x)
             x = blk(x)
+        #x = checkpoint(self.predictor_norm, x)
         x = self.predictor_norm(x)
 
         # -- return preds for mask tokens
@@ -641,9 +645,11 @@ class VisionTransformer(nn.Module):
 
         # -- fwd prop
         for i, blk in enumerate(self.blocks):
+            #x = checkpoint(blk, x)
             x = blk(x)
 
         if self.norm is not None:
+            #x = checkpoint(self.norm, x)
             x = self.norm(x)
 
         return x
@@ -686,6 +692,21 @@ def vit_predictor(**kwargs):
     model = VisionTransformerPredictor(
         mlp_ratio=4, qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6),
         **kwargs)
+    return model
+
+
+def vit_micro_predictor(**kwargs):
+    model = VisionTransformerPredictor(
+        embed_dim=48, depth=3, num_heads=3,
+        mlp_ratio=4, qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6),
+        **kwargs)
+    return model
+
+
+def vit_micro(patch_size=16, **kwargs):
+    model = VisionTransformer(
+        patch_size=patch_size, embed_dim=48, depth=3, num_heads=3, mlp_ratio=4,
+        qkv_bias=True, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
     return model
 
 
@@ -732,6 +753,7 @@ def vit_giant(patch_size=16, **kwargs):
 
 
 VIT_EMBED_DIMS = {
+    'vit_micro': 96,
     'vit_tiny': 192,
     'vit_small': 384,
     'vit_base': 768,

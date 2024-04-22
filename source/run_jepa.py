@@ -1,5 +1,6 @@
 # this python script runs jepa
 
+import gc
 import os
 import shutil
 import random
@@ -449,6 +450,7 @@ def world_model(args, logger=None, resume_preempt=False):
     use_color_distortion = args['data']['use_color_distortion']
     color_jitter = args['data']['color_jitter_strength']
     # --
+    global_batch_size = args['data']['global_batch_size']
     batch_size = args['data']['batch_size']
     pin_mem = args['data']['pin_mem']
     num_workers = args['data']['num_workers']
@@ -522,8 +524,10 @@ def world_model(args, logger=None, resume_preempt=False):
                            ('%d', 'epoch'),
                            ('%d', 'itr'),
                            ('%.5f', 'loss'),
-                           ('%.5f', 'mask-A'),
-                           ('%.5f', 'mask-B'),
+                           ('%.5f', 'lr'),
+                           ('%.5f', 'wd'),
+                           #('%.5f', 'mask-A'),
+                           #('%.5f', 'mask-B'),
                            ('%d', 'time (ms)'))
 
     # -- init world model
@@ -553,7 +557,7 @@ def world_model(args, logger=None, resume_preempt=False):
     # -- init data-loader
     data = PTZImageDataset('./labels', './collected_imgs', transform=transform)
     dataloader = DataLoader(data, batch_size=batch_size, shuffle=False)
-    ipe = len(dataloader)
+    ipe = int(len(dataloader)*(batch_size/global_batch_size))
 
 
 
@@ -756,6 +760,60 @@ def world_model(args, logger=None, resume_preempt=False):
         return (float(loss), _new_lr, _new_wd, grad_stats)
 
 
+
+
+
+    def acumulate_train_step(inputs):
+        #_new_lr = scheduler.step()
+        #_new_wd = wd_scheduler.step()
+        # --
+
+        # Step 1. Auxiliary Forward
+        h = forward_target(inputs[2])
+        with torch.no_grad():
+            z, r = forward_context(inputs[0], inputs[1], inputs[3])
+        auxiliary_loss = auxiliary_loss_fn(z, h)
+
+        # Step 2. Auxiliary Backward
+        auxiliary_loss.backward()
+        grads = []
+        for param in target_encoder.parameters():
+            if param.grad != None:
+                grads.append(param.grad.view(-1))
+        grads = torch.cat(grads)
+        g = grads.abs().sum()
+        target_encoder.zero_grad()
+
+        # Step 3. Forward
+        with torch.no_grad():
+            h = forward_target(inputs[2])
+        z, r = forward_context(inputs[0], inputs[1], inputs[3])
+        loss = loss_fn(z, r, h, g)
+
+        # Step 4. Backward & step
+        loss.backward()
+        #optimizer.step()
+        #grad_stats = grad_logger(encoder.named_parameters())
+        #optimizer.zero_grad()
+
+
+        # Step 5. momentum update of target encoder
+        #with torch.no_grad():
+        #    m = next(momentum_scheduler)
+        #    for param_q, param_k in zip(encoder.parameters(), target_encoder.parameters()):
+        #        param_k.detach().data.mul_(m).add_((1.-m) * param_q.detach().data)
+        #        #param_k.data.mul_(m).add_((1.-m) * param_q.detach().data)
+
+        return float(loss)
+
+
+
+
+
+
+
+
+
     def forward_target(images):
         h = target_encoder(images)
         h = F.layer_norm(h, (h.size(-1),))  # normalize over feature-dim
@@ -779,8 +837,8 @@ def world_model(args, logger=None, resume_preempt=False):
 
 
     # -- Logging
-    def log_stats(itr, epoch, loss, etime):
-        csv_logger.log(epoch + 1, itr, loss, etime)
+    def log_stats(itr, epoch, loss, lr, wd, etime):
+        csv_logger.log(epoch + 1, itr, loss, lr, wd, etime)
         if (itr % log_freq == 0) or np.isnan(loss) or np.isinf(loss):
             logger.info('[%d, %5d] loss: %.3f '
                         '[wd: %.2e] [lr: %.2e] '
@@ -820,12 +878,14 @@ def world_model(args, logger=None, resume_preempt=False):
             
             context_imgs, context_poss, target_imgs, target_poss = arrage_inputs(imgs, poss)
 
-            (loss, _new_lr, _new_wd, grad_stats), etime = gpu_timer(train_step, arguments=[context_imgs, context_poss, target_imgs, target_poss])
-            loss_meter.update(loss)
-            time_meter.update(etime)
-            log_stats(itr, epoch, loss, etime)
-            print(loss)
-
+            if itr%int(global_batch_size/batch_size)==0:
+                (loss, _new_lr, _new_wd, grad_stats), etime = gpu_timer(train_step, arguments=[context_imgs, context_poss, target_imgs, target_poss])
+                loss_meter.update(loss)
+                time_meter.update(etime)
+                log_stats(itr, epoch, loss, _new_lr, _new_wd, etime)
+                #print(loss)
+            else:
+                loss, etime = gpu_timer(acumulate_train_step, arguments=[context_imgs, context_poss, target_imgs, target_poss])
             assert not np.isnan(loss), 'loss is nan'
 
         # -- Save Checkpoint after every epoch
@@ -834,6 +894,12 @@ def world_model(args, logger=None, resume_preempt=False):
         save_checkpoint(epoch+1)
         change_ownership(ownership_folder)
         if detect_plateau(loss_values, patience=patience, threshold=threshold):
+            encoder.cpu()
+            predictor.cpu()
+            target_encoder.cpu()
+            del encoder, predictor, target_encoder, dataloader, data
+            gc.collect()
+            torch.cuda.empty_cache()
             return False
 
 
