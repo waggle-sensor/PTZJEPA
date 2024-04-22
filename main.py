@@ -4,6 +4,7 @@
 import time
 import datetime
 import os
+import shutil
 import glob
 import yaml
 import csv
@@ -23,6 +24,7 @@ from waggle.plugin import Plugin
 from source.run_jepa import run as run_jepa
 from source.run_rl import run as run_rl
 
+import torch
 
 
 def set_random_position(camera, args):
@@ -84,7 +86,7 @@ def publish_images():
         plugin.upload_file(ct + '_images.tar')
 
 
-def collect_images():
+def collect_images(keepimages):
     directory = './collected_imgs'
     if not os.path.exists(directory):
         os.makedirs(directory)
@@ -95,6 +97,17 @@ def collect_images():
             os.rename(f, os.path.join(directory, os.path.basename(f)))
         except OSError as e:
             print("Error: %s : %s" % (f, e.strerror))
+
+    if keepimages:
+        src='./collected_imgs'
+        dest=os.path.join('/persistence', 'collected_imgs')
+        if not os.path.exists(dest):
+            os.makedirs(dest)
+        src_files = os.listdir(src)
+        for file_name in src_files:
+            full_file_name = os.path.join(src, file_name)
+            if os.path.isfile(full_file_name):
+                shutil.copy(full_file_name, dest)
 
 
 def prepare_images():
@@ -210,7 +223,7 @@ def operate_ptz(args):
             grab_image(camera=Camera1, args=args)
 
         #publish_images()
-        collect_images()
+        collect_images(args.keepimages)
         os.rmdir('./imgs')
 
 
@@ -225,6 +238,35 @@ def operate_ptz(args):
         plugin.publish('finishing.image.collection', str(datetime.datetime.now()))
 
 
+
+
+
+
+def get_images_from_storage(args):
+    if args.storedimages:
+        src=os.path.join('/persistence', 'collected_imgs')
+        dest='./collected_imgs'
+        if not os.path.exists(dest):
+            os.makedirs(dest)
+
+        src_files = os.listdir(src)
+        for file_name in src_files:
+            full_file_name = os.path.join(src, file_name)
+            if os.path.isfile(full_file_name):
+                shutil.copy(full_file_name, dest)
+    else:
+        operate_ptz(args)
+
+
+
+
+
+
+
+
+
+
+
 def pretraining_wrapper(arguments):
     training_complete = False
     while not training_complete:
@@ -235,7 +277,8 @@ def pretraining_wrapper(arguments):
 def pretraining_world_model_wrapper(arguments):
     training_complete = False
     while not training_complete:
-        operate_ptz(arguments)
+        get_images_from_storage(arguments)
+        #operate_ptz(arguments)
         prepare_images()
         training_complete = run_jepa(arguments.fname, 'world_model')
 
@@ -265,6 +308,10 @@ def main():
     parser = argparse.ArgumentParser("PTZ JEPA")
 
     # PTZ sampler
+    parser.add_argument("-ki", "--keepimages", action="store_true", 
+                        help="Keep collected images in persistent folder for later use")
+    parser.add_argument("-si", "--storedimages", action="store_true", 
+                        help="Gather images from determined storage location")
     parser.add_argument("-cb", "--camerabrand",
                         help="An integer for each accepted camera brand (default=0). 0 is Hanwha, 1 is Axis.", type=int,
                         default=0)
@@ -285,7 +332,7 @@ def main():
                         type=str, default='')
     parser.add_argument("-rm", "--run_mode",
                         help="The mode to run the code.",
-			choices=['train', 'world_model_train', 'dream', 'agent_train', 'lifelong'],
+                        choices=['train', 'world_model_train', 'dream', 'agent_train', 'lifelong'],
                         type=str, default='train')
 
     # Joint Embedding Predictive Architecture (JEPA)

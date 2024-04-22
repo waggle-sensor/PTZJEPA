@@ -476,8 +476,11 @@ def agent_model(args, logger=None, resume_preempt=False):
             # θ′ ← τ θ + (1 −τ )θ′
             target_predictor_state_dict = target_predictor.state_dict()
             policy_predictor_state_dict = policy_predictor.state_dict()
-            for key in policy_predictor_state_dict:
-                target_predictor_state_dict[key] = policy_predictor_state_dict[key]*TAU + target_predictor_state_dict[key]*(1-TAU)
+            with torch.no_grad():
+                m = next(momentum_scheduler)
+                for key in policy_predictor_state_dict:
+                    #target_predictor_state_dict[key] = policy_predictor_state_dict[key]*m + target_predictor_state_dict[key]*(1-m)
+                    target_predictor_state_dict[key] = policy_predictor_state_dict[key]*TAU + target_predictor_state_dict[key]*(1-TAU)
             target_predictor.load_state_dict(target_predictor_state_dict)
 
         # -- Save Checkpoint after every epoch

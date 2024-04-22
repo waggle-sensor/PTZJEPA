@@ -80,6 +80,7 @@ def init_model(
         img_size=[crop_size],
         patch_size=patch_size)
     predictor = vit.__dict__['vit_predictor'](
+    #predictor = vit.__dict__['vit_micro_predictor'](
         num_patches=encoder.patch_embed.num_patches,
         embed_dim=encoder.embed_dim,
         predictor_embed_dim=pred_emb_dim,
