@@ -50,7 +50,7 @@ class CSVLogger(object):
 
 
 class AverageMeter(object):
-    """computes and stores the average and current value"""
+    """Computes and stores the average, variance, and current value"""
 
     def __init__(self):
         self.reset()
@@ -61,7 +61,9 @@ class AverageMeter(object):
         self.max = float('-inf')
         self.min = float('inf')
         self.sum = 0
+        self.sq_sum = 0  # Adding this to track the squared sum
         self.count = 0
+        self.var = 0  # Initialize the variance to 0
 
     def update(self, val, n=1):
         self.val = val
@@ -70,9 +72,14 @@ class AverageMeter(object):
             self.min = min(val, self.min)
         except Exception:
             pass
+
         self.sum += val * n
+        self.sq_sum += val**2 * n  # Updating the squared sum
         self.count += n
         self.avg = self.sum / self.count
+        self.var = self.sq_sum / self.count - self.avg ** 2
+
+
 
 
 def grad_logger(named_params):

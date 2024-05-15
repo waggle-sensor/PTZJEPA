@@ -1,5 +1,6 @@
 data:
-  global_batch_size: 512
+  #global_batch_size: 4
+  global_batch_size: 32
   batch_size: 4
   #batch_size: 128
   rl_batch_size: 16
@@ -46,28 +47,32 @@ meta:
   pred_depth: 12
   pred_emb_dim: 384
   read_checkpoint: null
+  #use_bfloat16: false
   use_bfloat16: true
 optimization:
   ema:
   - 0.996
   - 1.0
-  epochs: 300
+  epochs: 100
   #epochs: 1000
   rl_epochs: 300
+  #final_lr: 1.0e-07
   final_lr: 1.0e-06
+  #final_weight_decay: 0.04
   final_weight_decay: 0.4
   ipe_scale: 1.0
+  #lr: 0.00001
   lr: 0.0001
   start_lr: 0.000002
-  warmup: 10
+  warmup: 5
   #warmup: 10
   weight_decay: 0.04
   TAU: 0.005
   rl_warmup: 10
 plateau:
   patience: 10
-  threshold: 1.0
-  #threshold: 0.1
+  #threshold: 1.0
+  threshold: 0.1
   rl_patience: 10
   rl_threshold: 0.0001
 memory:
