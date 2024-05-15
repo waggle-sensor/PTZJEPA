@@ -270,7 +270,8 @@ def get_images_from_storage(args):
 def pretraining_wrapper(arguments):
     training_complete = False
     while not training_complete:
-        operate_ptz(arguments)
+        get_images_from_storage(arguments)
+        #operate_ptz(arguments)
         prepare_images()
         training_complete = run_jepa(arguments.fname, 'train')
 

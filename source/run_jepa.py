@@ -61,7 +61,9 @@ def train(args, logger=None, resume_preempt=False):
     use_color_distortion = args['data']['use_color_distortion']
     color_jitter = args['data']['color_jitter_strength']
     # --
+    global_batch_size = args['data']['global_batch_size']
     batch_size = args['data']['batch_size']
+    accumulation_steps = int(global_batch_size / batch_size)
     pin_mem = args['data']['pin_mem']
     num_workers = args['data']['num_workers']
     root_path = args['data']['root_path']
@@ -129,9 +131,20 @@ def train(args, logger=None, resume_preempt=False):
                            ('%d', 'epoch'),
                            ('%d', 'itr'),
                            ('%.5f', 'loss'),
-                           ('%.5f', 'mask-A'),
-                           ('%.5f', 'mask-B'),
+                           ('%.5f', 'lr'),
+                           ('%.5f', 'wd'),
+                           #('%.5f', 'mask-A'),
+                           #('%.5f', 'mask-B'),
                            ('%d', 'time (ms)'))
+
+    ## -- make csv_logger
+    #csv_logger = CSVLogger(log_file,
+    #                       ('%d', 'epoch'),
+    #                       ('%d', 'itr'),
+    #                       ('%.5f', 'loss'),
+    #                       ('%.5f', 'mask-A'),
+    #                       ('%.5f', 'mask-B'),
+    #                       ('%d', 'time (ms)'))
 
     # -- init model
     encoder, predictor = init_model(
@@ -316,9 +329,16 @@ def train(args, logger=None, resume_preempt=False):
         h = forward_target(inputs[2])
         z = forward_context(inputs[0], inputs[1], inputs[3])
         loss = loss_fn(z, h)
+        # Divide loss by accumulation steps
+        loss = loss / accumulation_steps
+
+
 
         # Step 2. Backward & step
         loss.backward()
+        ## Gradient Value Clipping
+        #torch.nn.utils.clip_grad_norm_(encoder.parameters(), max_norm=0.1)
+        #torch.nn.utils.clip_grad_norm_(predictor.parameters(), max_norm=0.1)
         optimizer.step()
         grad_stats = grad_logger(encoder.named_parameters())
         optimizer.zero_grad()
@@ -331,6 +351,37 @@ def train(args, logger=None, resume_preempt=False):
                 param_k.data.mul_(m).add_((1.-m) * param_q.detach().data)
 
         return (float(loss), _new_lr, _new_wd, grad_stats)
+
+
+
+    def acumulate_train_step(inputs):
+        _new_lr = scheduler.step()
+        _new_wd = wd_scheduler.step()
+        # --
+
+        # Step 1. Forward
+        h = forward_target(inputs[2])
+        z = forward_context(inputs[0], inputs[1], inputs[3])
+        loss = loss_fn(z, h)
+        # Divide loss by accumulation steps
+        loss = loss / accumulation_steps
+
+        # Step 2. Backward & step
+        loss.backward()
+        #optimizer.step()
+        grad_stats = grad_logger(encoder.named_parameters())
+        #optimizer.zero_grad()
+
+
+        # Step 3. momentum update of target encoder
+        with torch.no_grad():
+            m = next(momentum_scheduler)
+            for param_q, param_k in zip(encoder.parameters(), target_encoder.parameters()):
+                param_k.data.mul_(m).add_((1.-m) * param_q.detach().data)
+
+        return (float(loss), _new_lr, _new_wd, grad_stats)
+
+
 
     def forward_target(images):
         with torch.no_grad():
@@ -350,8 +401,10 @@ def train(args, logger=None, resume_preempt=False):
 
 
     # -- Logging
-    def log_stats(itr, epoch, loss, etime):
-        csv_logger.log(epoch + 1, itr, loss, etime)
+    #def log_stats(itr, epoch, loss, etime):
+    def log_stats(itr, epoch, loss, lr, wd, etime):
+        csv_logger.log(epoch + 1, itr, loss, lr, wd, etime)
+        #csv_logger.log(epoch + 1, itr, loss, etime)
         if (itr % log_freq == 0) or np.isnan(loss) or np.isinf(loss):
             logger.info('[%d, %5d] loss: %.3f '
                         '[wd: %.2e] [lr: %.2e] '
@@ -391,10 +444,16 @@ def train(args, logger=None, resume_preempt=False):
             
             context_imgs, context_poss, target_imgs, target_poss = arrage_inputs(imgs, poss)
 
-            (loss, _new_lr, _new_wd, grad_stats), etime = gpu_timer(train_step, arguments=[context_imgs, context_poss, target_imgs, target_poss])
+            if itr%int(global_batch_size/batch_size)==0:
+                (loss, _new_lr, _new_wd, grad_stats), etime = gpu_timer(train_step, arguments=[context_imgs, context_poss, target_imgs, target_poss])
+            else:
+                (loss, _new_lr, _new_wd, grad_stats), etime = gpu_timer(acumulate_train_step, arguments=[context_imgs, context_poss, target_imgs, target_poss])
+
+            #(loss, _new_lr, _new_wd, grad_stats), etime = gpu_timer(train_step, arguments=[context_imgs, context_poss, target_imgs, target_poss])
             loss_meter.update(loss)
             time_meter.update(etime)
-            log_stats(itr, epoch, loss, etime)
+            log_stats(itr, epoch, loss, _new_lr, _new_wd, etime)
+            #log_stats(itr, epoch, loss, etime)
 
             assert not np.isnan(loss), 'loss is nan'
 
@@ -557,7 +616,8 @@ def world_model(args, logger=None, resume_preempt=False):
     # -- init data-loader
     data = PTZImageDataset('./labels', './collected_imgs', transform=transform)
     dataloader = DataLoader(data, batch_size=batch_size, shuffle=False)
-    ipe = int(len(dataloader)*(batch_size/global_batch_size))
+    ipe = len(dataloader)
+    #ipe = int(len(dataloader)*(batch_size/global_batch_size))
 
 
 
@@ -764,8 +824,8 @@ def world_model(args, logger=None, resume_preempt=False):
 
 
     def acumulate_train_step(inputs):
-        #_new_lr = scheduler.step()
-        #_new_wd = wd_scheduler.step()
+        _new_lr = scheduler.step()
+        _new_wd = wd_scheduler.step()
         # --
 
         # Step 1. Auxiliary Forward
@@ -793,18 +853,19 @@ def world_model(args, logger=None, resume_preempt=False):
         # Step 4. Backward & step
         loss.backward()
         #optimizer.step()
-        #grad_stats = grad_logger(encoder.named_parameters())
+        grad_stats = grad_logger(encoder.named_parameters())
         #optimizer.zero_grad()
 
 
         # Step 5. momentum update of target encoder
-        #with torch.no_grad():
-        #    m = next(momentum_scheduler)
-        #    for param_q, param_k in zip(encoder.parameters(), target_encoder.parameters()):
-        #        param_k.detach().data.mul_(m).add_((1.-m) * param_q.detach().data)
-        #        #param_k.data.mul_(m).add_((1.-m) * param_q.detach().data)
+        with torch.no_grad():
+            m = next(momentum_scheduler)
+            for param_q, param_k in zip(encoder.parameters(), target_encoder.parameters()):
+                param_k.detach().data.mul_(m).add_((1.-m) * param_q.detach().data)
+                #param_k.data.mul_(m).add_((1.-m) * param_q.detach().data)
 
-        return float(loss)
+        return (float(loss), _new_lr, _new_wd, grad_stats)
+        #return float(loss)
 
 
 
@@ -885,7 +946,11 @@ def world_model(args, logger=None, resume_preempt=False):
                 log_stats(itr, epoch, loss, _new_lr, _new_wd, etime)
                 #print(loss)
             else:
-                loss, etime = gpu_timer(acumulate_train_step, arguments=[context_imgs, context_poss, target_imgs, target_poss])
+                #loss, etime = gpu_timer(acumulate_train_step, arguments=[context_imgs, context_poss, target_imgs, target_poss])
+                (loss, _new_lr, _new_wd, grad_stats), etime = gpu_timer(train_step, arguments=[context_imgs, context_poss, target_imgs, target_poss])
+                loss_meter.update(loss)
+                time_meter.update(etime)
+                log_stats(itr, epoch, loss, _new_lr, _new_wd, etime)
             assert not np.isnan(loss), 'loss is nan'
 
         # -- Save Checkpoint after every epoch
