@@ -27,6 +27,7 @@ from source.run_rl import run as run_rl
 import torch
 
 
+
 def set_random_position(camera, args):
     if args.camerabrand==0:
         pan_pos = np.random.randint(0, 360)
@@ -199,6 +200,9 @@ def operate_ptz(args):
         plugin.publish('starting.new.image.collection.the.number.of.iterations.is', iterations)
         plugin.publish('the.number.of.images.recorded.by.iteration.is', number_of_commands)
 
+    directory = './collected_imgs'
+    if os.path.exists(directory):
+        shutil.rmtree(directory)
     for iteration in range(iterations):
         with Plugin() as plugin:
             plugin.publish('iteration.number', iteration)

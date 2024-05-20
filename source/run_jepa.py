@@ -49,6 +49,7 @@ def train(args, logger=None, resume_preempt=False):
     copy_data = args['meta']['copy_data']
     pred_depth = args['meta']['pred_depth']
     pred_emb_dim = args['meta']['pred_emb_dim']
+    camera_brand = args['meta']['camera_brand']
     if not torch.cuda.is_available():
         device = torch.device('cpu')
     else:
@@ -317,6 +318,18 @@ def train(args, logger=None, resume_preempt=False):
             for File in files:
                 os.chmod(os.path.join(subdir, File), 0o666)
 
+    def get_random_position():
+        if camera_brand==0:
+            pan_pos = np.random.randint(0, 360)
+            tilt_pos = np.random.randint(-90, 90)
+            zoom_pos = np.random.randint(1, 2)
+        elif camera_brand==1:
+            pan_pos = np.random.randint(-180, 180)
+            tilt_pos = np.random.randint(-180, 180)
+            zoom_pos = np.random.randint(100, 200)
+
+        return pan_pos, tilt_pos, zoom_pos
+
 
 
 
@@ -390,6 +403,8 @@ def train(args, logger=None, resume_preempt=False):
             return h
 
     def forward_context(images, possition1, possition2):
+        # Change allocentric position
+        change_allocentric_position(possition1, possition2)
         z = encoder(images)
         z = predictor(z, possition1, possition2) 
         return z
@@ -425,6 +440,14 @@ def train(args, logger=None, resume_preempt=False):
                                grad_stats.min,
                                grad_stats.max))
 
+
+    # Change allocentric position
+    def change_allocentric_position(possition1, possition2):
+        pan, tilt, _ = get_random_position()
+        possition1[:,0] = possition1[:,0] - pan
+        possition1[:,1] = possition1[:,1] - tilt
+        possition2[:,0] = possition2[:,0] - pan
+        possition2[:,1] = possition2[:,1] - tilt
 
 
 
@@ -865,7 +888,6 @@ def world_model(args, logger=None, resume_preempt=False):
                 #param_k.data.mul_(m).add_((1.-m) * param_q.detach().data)
 
         return (float(loss), _new_lr, _new_wd, grad_stats)
-        #return float(loss)
 
 
 
@@ -881,6 +903,8 @@ def world_model(args, logger=None, resume_preempt=False):
         return h
 
     def forward_context(images, possition1, possition2):
+        # Change allocentric position
+        change_allocentric_position(possition1, possition2)
         z = encoder(images)
         z, r = predictor(z, possition1, possition2) 
         return z, r
@@ -920,6 +944,14 @@ def world_model(args, logger=None, resume_preempt=False):
                                grad_stats.min,
                                grad_stats.max))
 
+    # Change allocentric position
+    def change_allocentric_position(possition1, possition2):
+        pan, tilt, _ = get_random_position()
+        possition1[:,0] = possition1[:,0] - pan
+        possition1[:,1] = possition1[:,1] - tilt
+        possition2[:,0] = possition2[:,0] - pan
+        possition2[:,1] = possition2[:,1] - tilt
+
 
 
 
@@ -941,16 +973,14 @@ def world_model(args, logger=None, resume_preempt=False):
 
             if itr%int(global_batch_size/batch_size)==0:
                 (loss, _new_lr, _new_wd, grad_stats), etime = gpu_timer(train_step, arguments=[context_imgs, context_poss, target_imgs, target_poss])
-                loss_meter.update(loss)
-                time_meter.update(etime)
-                log_stats(itr, epoch, loss, _new_lr, _new_wd, etime)
-                #print(loss)
             else:
                 #loss, etime = gpu_timer(acumulate_train_step, arguments=[context_imgs, context_poss, target_imgs, target_poss])
-                (loss, _new_lr, _new_wd, grad_stats), etime = gpu_timer(train_step, arguments=[context_imgs, context_poss, target_imgs, target_poss])
-                loss_meter.update(loss)
-                time_meter.update(etime)
-                log_stats(itr, epoch, loss, _new_lr, _new_wd, etime)
+                (loss, _new_lr, _new_wd, grad_stats), etime = gpu_timer(acumulate_train_step, arguments=[context_imgs, context_poss, target_imgs, target_poss])
+
+            loss_meter.update(loss)
+            time_meter.update(etime)
+            log_stats(itr, epoch, loss, _new_lr, _new_wd, etime)
+
             assert not np.isnan(loss), 'loss is nan'
 
         # -- Save Checkpoint after every epoch
