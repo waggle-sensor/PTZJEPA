@@ -520,6 +520,7 @@ def world_model(args, logger=None, resume_preempt=False):
     copy_data = args['meta']['copy_data']
     pred_depth = args['meta']['pred_depth']
     pred_emb_dim = args['meta']['pred_emb_dim']
+    camera_brand = args['meta']['camera_brand']
     if not torch.cuda.is_available():
         device = torch.device('cpu')
     else:
@@ -565,8 +566,8 @@ def world_model(args, logger=None, resume_preempt=False):
     final_lr = args['optimization']['final_lr']
 
     # -- PLATEAU
-    patience = args['plateau']['patience']
-    threshold = args['plateau']['threshold']
+    patience = args['plateau']['wm_patience']
+    threshold = args['plateau']['wm_threshold']
 
     # -- LOGGING
     folder = args['logging']['folder']
@@ -797,6 +798,27 @@ def world_model(args, logger=None, resume_preempt=False):
 
             for File in files:
                 os.chmod(os.path.join(subdir, File), 0o666)
+
+
+
+
+
+    def get_random_position():
+        if camera_brand==0:
+            pan_pos = np.random.randint(0, 360)
+            tilt_pos = np.random.randint(-90, 90)
+            zoom_pos = np.random.randint(1, 2)
+        elif camera_brand==1:
+            pan_pos = np.random.randint(-180, 180)
+            tilt_pos = np.random.randint(-180, 180)
+            zoom_pos = np.random.randint(100, 200)
+
+        return pan_pos, tilt_pos, zoom_pos
+
+
+
+
+
 
 
     def train_step(inputs):

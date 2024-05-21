@@ -75,6 +75,8 @@ plateau:
   patience: 10
   #threshold: 1.0
   threshold: 0.01
+  wm_patience: 10
+  wm_threshold: 1.0
   rl_patience: 10
   rl_threshold: 0.0001
 memory:
