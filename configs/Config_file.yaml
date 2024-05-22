@@ -56,6 +56,7 @@ optimization:
   - 1.0
   epochs: 100
   #epochs: 1000
+  #rl_epochs: 100
   rl_epochs: 300
   #final_lr: 1.0e-07
   final_lr: 1.0e-06
@@ -70,7 +71,8 @@ optimization:
   #weight_decay: 0.5
   weight_decay: 0.04
   TAU: 0.005
-  rl_warmup: 10
+  rl_warmup: 5
+  #rl_warmup: 10
 plateau:
   patience: 10
   #threshold: 1.0
