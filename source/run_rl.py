@@ -191,9 +191,20 @@ def agent_model(args, logger=None, resume_preempt=False):
                            ('%d', 'epoch'),
                            ('%d', 'itr'),
                            ('%.5f', 'loss'),
-                           ('%.5f', 'mask-A'),
-                           ('%.5f', 'mask-B'),
+                           ('%.5f', 'lr'),
+                           ('%.5f', 'wd'),
+                           #('%.5f', 'mask-A'),
+                           #('%.5f', 'mask-B'),
                            ('%d', 'time (ms)'))
+
+    ## -- make csv_logger
+    #csv_logger = CSVLogger(log_file,
+                           #('%d', 'epoch'),
+                           #('%d', 'itr'),
+                           #('%.5f', 'loss'),
+                           #('%.5f', 'mask-A'),
+                           #('%.5f', 'mask-B'),
+                           #('%d', 'time (ms)'))
 
     # -- init world model
     encoder, policy_predictor = init_agent_model(
@@ -356,8 +367,10 @@ def agent_model(args, logger=None, resume_preempt=False):
 
 
     # -- Logging
-    def log_stats(itr, epoch, loss, etime):
-        csv_logger.log(epoch + 1, itr, loss, etime)
+    #def log_stats(itr, epoch, loss, etime):
+    def log_stats(itr, epoch, loss, lr, wd, etime):
+        csv_logger.log(epoch + 1, itr, loss, lr, wd, etime)
+        #csv_logger.log(epoch + 1, itr, loss, etime)
         if (itr % log_freq == 0) or np.isnan(loss) or np.isinf(loss):
             logger.info('[%d, %5d] loss: %.3f '
                         '[wd: %.2e] [lr: %.2e] '
@@ -468,7 +481,8 @@ def agent_model(args, logger=None, resume_preempt=False):
             (loss, _new_lr, _new_wd, grad_stats), etime = gpu_timer(optimize_model, arguments=transitions)
             loss_meter.update(loss)
             time_meter.update(etime)
-            log_stats(itr, epoch, loss, etime)
+            log_stats(itr, epoch, loss, _new_lr, _new_wd, etime)
+            #log_stats(itr, epoch, loss, etime)
 
             assert not np.isnan(loss), 'loss is nan'
 
