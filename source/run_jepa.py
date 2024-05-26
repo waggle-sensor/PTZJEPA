@@ -1058,6 +1058,7 @@ def dreamer(args, logger=None, resume_preempt=False):
     copy_data = args['meta']['copy_data']
     pred_depth = args['meta']['pred_depth']
     pred_emb_dim = args['meta']['pred_emb_dim']
+    camera_brand = args['meta']['camera_brand']
     if not torch.cuda.is_available():
         device = torch.device('cpu')
     else:
@@ -1264,6 +1265,23 @@ def dreamer(args, logger=None, resume_preempt=False):
 
 
 
+    def get_random_position():
+        if camera_brand==0:
+            pan_pos = np.random.randint(0, 360)
+            tilt_pos = np.random.randint(-90, 90)
+            zoom_pos = np.random.randint(1, 2)
+        elif camera_brand==1:
+            pan_pos = np.random.randint(-180, 180)
+            tilt_pos = np.random.randint(-180, 180)
+            zoom_pos = np.random.randint(100, 200)
+
+        return pan_pos, tilt_pos, zoom_pos
+
+
+
+
+
+
     def dream_step(inputs):
         images = inputs[0]
         possitions = inputs[1]
@@ -1388,11 +1406,18 @@ def dreamer(args, logger=None, resume_preempt=False):
         return torch.tensor(possitions)
 
 
+    # Change allocentric position
+    def change_allocentric_position(possition):
+        pan, tilt, _ = get_random_position()
+        possition[:,0] = possition[:,0] - pan
+        possition[:,1] = possition[:,1] - tilt
+
 
 
     # -- DREAM LOOP
     for itr, (imgs, labls) in enumerate(dataloader):
         poss = get_position_from_label(labls)
+        change_allocentric_position(poss)
         imgs = imgs.to(device, non_blocking=True)
         poss = poss.to(device, non_blocking=True)
         

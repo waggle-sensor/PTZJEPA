@@ -3,7 +3,8 @@ data:
   global_batch_size: 32
   batch_size: 4
   #batch_size: 128
-  rl_batch_size: 16
+  rl_batch_size: 64
+  #rl_batch_size: 16
   color_jitter_strength: 0.0
   crop_scale:
   - 0.98
@@ -56,8 +57,8 @@ optimization:
   - 1.0
   epochs: 100
   #epochs: 1000
-  #rl_epochs: 100
-  rl_epochs: 300
+  rl_epochs: 100
+  #rl_epochs: 300
   #final_lr: 1.0e-07
   final_lr: 1.0e-06
   #final_weight_decay: 2.0
@@ -80,14 +81,16 @@ plateau:
   wm_patience: 10
   wm_threshold: 1.0
   rl_patience: 10
-  rl_threshold: 0.0001
+  rl_threshold: 0.01
 memory:
   models: 1
   memory_models: 1
-  dreams: 10
+  dreams: 150
+  #dreams: 10
   rl_models: 1
 dreamer:
-  number_of_dreams: 20
+  number_of_dreams: 150
+  #number_of_dreams: 20
   dream_length: 10
 action:
   short:
