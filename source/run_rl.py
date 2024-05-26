@@ -294,6 +294,7 @@ def agent_model(args, logger=None, resume_preempt=False):
 
         target_save_dict = {
             'predictor': target_predictor.state_dict(),
+            'epoch': epoch,
             'loss': loss_meter.avg,
             'batch_size': batch_size,
             'lr': lr
@@ -348,6 +349,8 @@ def agent_model(args, logger=None, resume_preempt=False):
 
         # Backward & step
         loss.backward()
+        ## Gradient Value Clipping
+        torch.nn.utils.clip_grad_norm_(policy_predictor.parameters(), max_norm=1.0)
         optimizer.step()
         grad_stats = grad_logger(policy_predictor.named_parameters())
         optimizer.zero_grad()
@@ -463,11 +466,12 @@ def agent_model(args, logger=None, resume_preempt=False):
 
     # -- TRAINING LOOP
     #memory = ReplayMemory(100000)
-    print('PREPARING DATA...')
-    memory = prepare_data(dataloader, ipe)
-    print('DONE!')
     loss_values = []
     for epoch in range(start_epoch, num_epochs):
+        print('PREPARING DATA...')
+        memory = prepare_data(dataloader, ipe)
+        print('DONE!')
+        dataloader = DataLoader(data, batch_size=batch_size, shuffle=True)
         logger.info('Epoch %d' % (epoch + 1))
 
         loss_meter = AverageMeter()
@@ -476,6 +480,9 @@ def agent_model(args, logger=None, resume_preempt=False):
         for itr in range(len(memory)):
             # Perform one step of the optimization (on the policy network)
             #optimize_model()
+            #print('itr: ', itr)
+            #print('batch_size: ', batch_size)
+            #print('len(memory): ', len(memory))
             transitions = memory.sample(batch_size)
 
             (loss, _new_lr, _new_wd, grad_stats), etime = gpu_timer(optimize_model, arguments=transitions)
@@ -502,6 +509,11 @@ def agent_model(args, logger=None, resume_preempt=False):
         loss_values.append(loss_meter.avg)
         save_checkpoint(epoch+1)
         change_ownership(ownership_folder)
+
+
+
+
+
         if detect_plateau(loss_values, patience=patience, threshold=threshold):
             return False
 
