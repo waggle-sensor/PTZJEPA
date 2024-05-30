@@ -1,0 +1,6 @@
+services:
+  train:
+    image: brookluo/ptzjepa:py3.12.3
+    # build: .
+    volumes:
+      - /home/waggle/yufeng/PTZJEPA:/home/node/app

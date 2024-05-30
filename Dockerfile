@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM python:latest
+FROM python:3.12.3-bookworm
 
 WORKDIR /app
 
@@ -11,6 +11,6 @@ RUN pip3 install -U pywaggle[all]
 RUN pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 RUN apt-get update && apt-get install ffmpeg libsm6 libxext6  -y
 
-COPY . .
+# COPY . .
 
 ENTRYPOINT ["python", "main.py"]
