@@ -8,6 +8,7 @@ import copy
 import logging
 import yaml
 import pprint
+from typing import Iterable
 import torch
 import torch.nn.functional as F
 
@@ -35,6 +36,95 @@ from source.datasets.ptz_dataset import PTZImageDataset
 log_freq = 10
 checkpoint_freq = 50000000000000
 # --
+
+def get_random_position(camera_brand):
+    if camera_brand==0:
+        pan_pos = np.random.randint(0, 360)
+        tilt_pos = np.random.randint(-90, 90)
+        zoom_pos = np.random.randint(1, 2)
+    elif camera_brand==1:
+        pan_pos = np.random.randint(-180, 180)
+        tilt_pos = np.random.randint(-180, 180)
+        zoom_pos = np.random.randint(100, 200)
+
+    return pan_pos, tilt_pos, zoom_pos
+
+# Change allocentric position
+def change_allocentric_position(possition1, possition2, camera_brand):
+    pan, tilt, _ = get_random_position(camera_brand)
+    possition1[:,0] = possition1[:,0] - pan
+    possition1[:,1] = possition1[:,1] - tilt
+    possition2[:,0] = possition2[:,0] - pan
+    possition2[:,1] = possition2[:,1] - tilt
+
+def forward_target(images, target_encoder):
+    with torch.no_grad():
+        h = target_encoder(images)
+        h = F.layer_norm(h, (h.size(-1),))  # normalize over feature-dim
+        return h
+
+def forward_context(images, possition1, possition2, encoder, predictor, camera_brand):
+    # Change allocentric position
+    change_allocentric_position(possition1, possition2, camera_brand)
+    z = encoder(images)
+    z = predictor(z, possition1, possition2)
+    return z
+
+def loss_fn(z, h):
+    loss = F.smooth_l1_loss(z, h)
+    return loss
+
+def get_position_from_label(labels: Iterable[str]):
+    positions = []
+    if not isinstance(labels, Iterable):
+        # coerce to list
+        labels = [labels]
+    for label in labels:
+        poss = label.split('_')[0].split(',')
+        positions.append([float(poss[0]), float(poss[1]), float(poss[2])])
+    return torch.tensor(positions)
+
+
+def arrage_inputs(images, possitions, device):
+    context_imgs = []
+    target_imgs = []
+    context_poss = []
+    target_poss = []
+    for context_idx in range(possitions.shape[0]):
+        for target_idx in range(possitions.shape[0]):
+            context_imgs.append(images[context_idx].unsqueeze(0))
+            context_poss.append(possitions[context_idx].unsqueeze(0))
+            target_imgs.append(images[target_idx].unsqueeze(0))
+            target_poss.append(possitions[target_idx].unsqueeze(0))
+
+
+    auxiliary = torch.Tensor(len(context_imgs), context_imgs[0].shape[1],
+                                                context_imgs[0].shape[2],
+                                                context_imgs[0].shape[3]).to(device, non_blocking=True)
+    torch.cat(context_imgs, out=auxiliary)
+    auxiliary = auxiliary.squeeze(1)
+    context_imgs = auxiliary.detach().clone()
+
+    auxiliary = torch.Tensor(len(context_poss), context_poss[0].shape[1]).to(device, non_blocking=True)
+    torch.cat(context_poss, out=auxiliary)
+    auxiliary = auxiliary.squeeze(1)
+    context_poss = auxiliary.detach().clone()
+
+
+    auxiliary = torch.Tensor(len(target_imgs), target_imgs[0].shape[1],
+                                                target_imgs[0].shape[2],
+                                                target_imgs[0].shape[3]).to(device, non_blocking=True)
+    torch.cat(target_imgs, out=auxiliary)
+    auxiliary = auxiliary.squeeze(1)
+    target_imgs = auxiliary.detach().clone()
+
+    auxiliary = torch.Tensor(len(target_poss), target_poss[0].shape[1]).to(device, non_blocking=True)
+    torch.cat(target_poss, out=auxiliary)
+    auxiliary = auxiliary.squeeze(1)
+    target_poss = auxiliary.detach().clone()
+
+    return context_imgs.to(device), context_poss.to(device), target_imgs.to(device), target_poss.to(device)
+
 
 def train(args, logger=None, resume_preempt=False):
     # ----------------------------------------------------------------------- #
@@ -244,47 +334,6 @@ def train(args, logger=None, resume_preempt=False):
         return torch.tensor(possitions)
 
 
-    def arrage_inputs(images, possitions):
-        context_imgs = []
-        target_imgs = []
-        context_poss = []
-        target_poss = []
-        for context_idx in range(possitions.shape[0]):
-            for target_idx in range(possitions.shape[0]):
-                context_imgs.append(images[context_idx].unsqueeze(0))
-                context_poss.append(possitions[context_idx].unsqueeze(0))
-                target_imgs.append(images[target_idx].unsqueeze(0))
-                target_poss.append(possitions[target_idx].unsqueeze(0))
-
-
-        auxiliary = torch.Tensor(len(context_imgs), context_imgs[0].shape[1],
-                                                    context_imgs[0].shape[2],
-                                                    context_imgs[0].shape[3]).to(device, non_blocking=True)
-        torch.cat(context_imgs, out=auxiliary)
-        auxiliary = auxiliary.squeeze(1)
-        context_imgs = auxiliary.detach().clone()
-
-        auxiliary = torch.Tensor(len(context_poss), context_poss[0].shape[1]).to(device, non_blocking=True)
-        torch.cat(context_poss, out=auxiliary)
-        auxiliary = auxiliary.squeeze(1)
-        context_poss = auxiliary.detach().clone()
-
-
-        auxiliary = torch.Tensor(len(target_imgs), target_imgs[0].shape[1],
-                                                   target_imgs[0].shape[2],
-                                                   target_imgs[0].shape[3]).to(device, non_blocking=True)
-        torch.cat(target_imgs, out=auxiliary)
-        auxiliary = auxiliary.squeeze(1)
-        target_imgs = auxiliary.detach().clone()
-
-        auxiliary = torch.Tensor(len(target_poss), target_poss[0].shape[1]).to(device, non_blocking=True)
-        torch.cat(target_poss, out=auxiliary)
-        auxiliary = auxiliary.squeeze(1)
-        target_poss = auxiliary.detach().clone()
-
-        return context_imgs.to(device), context_poss.to(device), target_imgs.to(device), target_poss.to(device)
- 
-
     def detect_plateau(loss_values, patience=5, threshold=1e-4):
         """
         Detects plateauing behavior in a loss curve.
@@ -318,18 +367,6 @@ def train(args, logger=None, resume_preempt=False):
             for File in files:
                 os.chmod(os.path.join(subdir, File), 0o666)
 
-    def get_random_position():
-        if camera_brand==0:
-            pan_pos = np.random.randint(0, 360)
-            tilt_pos = np.random.randint(-90, 90)
-            zoom_pos = np.random.randint(1, 2)
-        elif camera_brand==1:
-            pan_pos = np.random.randint(-180, 180)
-            tilt_pos = np.random.randint(-180, 180)
-            zoom_pos = np.random.randint(100, 200)
-
-        return pan_pos, tilt_pos, zoom_pos
-
 
 
 
@@ -339,8 +376,8 @@ def train(args, logger=None, resume_preempt=False):
         # --
 
         # Step 1. Forward
-        h = forward_target(inputs[2])
-        z = forward_context(inputs[0], inputs[1], inputs[3])
+        h = forward_target(inputs[2], target_encoder)
+        z = forward_context(inputs[0], inputs[1], inputs[3], encoder, predictor, camera_brand)
         loss = loss_fn(z, h)
         # Divide loss by accumulation steps
         loss = loss / accumulation_steps
@@ -373,8 +410,8 @@ def train(args, logger=None, resume_preempt=False):
         # --
 
         # Step 1. Forward
-        h = forward_target(inputs[2])
-        z = forward_context(inputs[0], inputs[1], inputs[3])
+        h = forward_target(inputs[2], target_encoder)
+        z = forward_context(inputs[0], inputs[1], inputs[3], encoder, predictor, camera_brand)
         loss = loss_fn(z, h)
         # Divide loss by accumulation steps
         loss = loss / accumulation_steps
@@ -393,26 +430,6 @@ def train(args, logger=None, resume_preempt=False):
                 param_k.data.mul_(m).add_((1.-m) * param_q.detach().data)
 
         return (float(loss), _new_lr, _new_wd, grad_stats)
-
-
-
-    def forward_target(images):
-        with torch.no_grad():
-            h = target_encoder(images)
-            h = F.layer_norm(h, (h.size(-1),))  # normalize over feature-dim
-            return h
-
-    def forward_context(images, possition1, possition2):
-        # Change allocentric position
-        change_allocentric_position(possition1, possition2)
-        z = encoder(images)
-        z = predictor(z, possition1, possition2) 
-        return z
-
-
-    def loss_fn(z, h):
-        loss = F.smooth_l1_loss(z, h)
-        return loss
 
 
     # -- Logging
@@ -441,14 +458,6 @@ def train(args, logger=None, resume_preempt=False):
                                grad_stats.max))
 
 
-    # Change allocentric position
-    def change_allocentric_position(possition1, possition2):
-        pan, tilt, _ = get_random_position()
-        possition1[:,0] = possition1[:,0] - pan
-        possition1[:,1] = possition1[:,1] - tilt
-        possition2[:,0] = possition2[:,0] - pan
-        possition2[:,1] = possition2[:,1] - tilt
-
 
 
 
@@ -465,7 +474,7 @@ def train(args, logger=None, resume_preempt=False):
             imgs = imgs.to(device, non_blocking=True)
             poss = poss.to(device, non_blocking=True)
             
-            context_imgs, context_poss, target_imgs, target_poss = arrage_inputs(imgs, poss)
+            context_imgs, context_poss, target_imgs, target_poss = arrage_inputs(imgs, poss, device)
 
             if itr%int(global_batch_size/batch_size)==0:
                 (loss, _new_lr, _new_wd, grad_stats), etime = gpu_timer(train_step, arguments=[context_imgs, context_poss, target_imgs, target_poss])
@@ -711,14 +720,6 @@ def world_model(args, logger=None, resume_preempt=False):
             torch.save(save_dict, save_path.format(epoch=f'{epoch + 1}'))
 
 
-    def get_position_from_label(labels):
-        possitions = []
-        for label in labels:
-            poss = label.split('_')[0].split(',')
-            possitions.append([float(poss[0]), float(poss[1]), float(poss[2])])
-
-        return torch.tensor(possitions)
-
 
     def arrage_inputs(images, possitions):
         context_imgs = []
@@ -731,7 +732,6 @@ def world_model(args, logger=None, resume_preempt=False):
                 context_poss.append(possitions[context_idx].unsqueeze(0))
                 target_imgs.append(images[target_idx].unsqueeze(0))
                 target_poss.append(possitions[target_idx].unsqueeze(0))
-
 
         auxiliary = torch.Tensor(len(context_imgs), context_imgs[0].shape[1],
                                                     context_imgs[0].shape[2],
@@ -1373,18 +1373,6 @@ def dreamer(args, logger=None, resume_preempt=False):
         return next_possitions, next_actions
 
 
-
-    def forward_target(images):
-        h = target_encoder(images)
-        h = F.layer_norm(h, (h.size(-1),))  # normalize over feature-dim
-        return h
-
-    def forward_context(images, possition1, possition2):
-        z = encoder(images)
-        z, r = predictor(z, possition1, possition2) 
-        return z, r
-
-
     def auxiliary_loss_fn(z, h):
         loss = F.smooth_l1_loss(z, h)
         return loss
@@ -1394,16 +1382,6 @@ def dreamer(args, logger=None, resume_preempt=False):
         loss2 = F.smooth_l1_loss(r, g.repeat(r.shape))# * 1e-4
         loss = loss1 + loss2
         return loss
-
-
-
-    def get_position_from_label(labels):
-        possitions = []
-        for label in labels:
-            poss = label.split('_')[0].split(',')
-            possitions.append([float(poss[0]), float(poss[1]), float(poss[2])])
-
-        return torch.tensor(possitions)
 
 
     # Change allocentric position
@@ -1493,5 +1471,4 @@ def run(fname, mode):
     if mode=='dreamer':
         return dreamer(params, logger=logger)
     else:
-        print(f"Unexpected mode {mode}")
-        raise
+        raise ValueError(f"Unexpected mode {mode}")
