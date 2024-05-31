@@ -454,8 +454,8 @@ def agent_model(args, logger=None, resume_preempt=False):
                         # Store the transition in memory
                         memory.push(state, position, action, next_state, next_position, reward)
 
-                        if len(memory) > 0.9*size:
-                            return memory
+                        #if len(memory) > 0.9*size:
+                            #return memory
 
         return memory
 
@@ -469,7 +469,7 @@ def agent_model(args, logger=None, resume_preempt=False):
     loss_values = []
     for epoch in range(start_epoch, num_epochs):
         print('PREPARING DATA...')
-        memory = prepare_data(dataloader, ipe)
+        memory = prepare_data(dataloader, ipe*batch_size)
         print('DONE!')
         dataloader = DataLoader(data, batch_size=batch_size, shuffle=True)
         logger.info('Epoch %d' % (epoch + 1))
@@ -483,7 +483,14 @@ def agent_model(args, logger=None, resume_preempt=False):
             #print('itr: ', itr)
             #print('batch_size: ', batch_size)
             #print('len(memory): ', len(memory))
-            transitions = memory.sample(batch_size)
+            try:
+                transitions = memory.sample(batch_size)
+            except:
+                transitions = None
+
+            if transitions == None:
+                print('Not enough data for the RL agent')
+                return False
 
             (loss, _new_lr, _new_wd, grad_stats), etime = gpu_timer(optimize_model, arguments=transitions)
             loss_meter.update(loss)

@@ -306,6 +306,7 @@ def lifelong_learning(arguments):
         prepare_images()
         training_complete = run_jepa(arguments.fname, 'world_model')
         training_complete = run_jepa(arguments.fname, 'dreamer')
+        training_complete = run_rl(arguments.fname, 'train_agent')
 
 
 

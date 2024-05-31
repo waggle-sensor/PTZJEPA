@@ -83,13 +83,13 @@ plateau:
   rl_patience: 10
   rl_threshold: 0.01
 memory:
-  models: 1
-  memory_models: 1
-  dreams: 150
+  models: 100
+  memory_models: 100
+  dreams: 15
   #dreams: 10
-  rl_models: 1
+  rl_models: 100
 dreamer:
-  number_of_dreams: 150
+  number_of_dreams: 15
   #number_of_dreams: 20
   dream_length: 10
 action:

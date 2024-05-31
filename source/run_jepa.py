@@ -49,7 +49,7 @@ def train(args, logger=None, resume_preempt=False):
     copy_data = args['meta']['copy_data']
     pred_depth = args['meta']['pred_depth']
     pred_emb_dim = args['meta']['pred_emb_dim']
-    camera_brand = args['meta']['camera_brand']
+    camera_brand = args['meta']['camera_brand'] #TODO I have to fix it!!!!!!!!!! I have to include the arguments of main together with the arguments from the yalm file
     if not torch.cuda.is_available():
         device = torch.device('cpu')
     else:
