@@ -51,12 +51,12 @@ def get_random_position(camera_brand):
     return pan_pos, tilt_pos, zoom_pos
 
 # Change allocentric position
-def change_allocentric_position(possition1, possition2, camera_brand):
+def change_allocentric_position(position1, position2, camera_brand):
     pan, tilt, _ = get_random_position(camera_brand)
-    possition1[:,0] -= pan
-    possition1[:,1] -= tilt
-    possition2[:,0] -= pan
-    possition2[:,1] -= tilt
+    position1[:,0] -= pan
+    position1[:,1] -= tilt
+    position2[:,0] -= pan
+    position2[:,1] -= tilt
 
 def forward_target(images, target_encoder):
     with torch.no_grad():
@@ -64,12 +64,14 @@ def forward_target(images, target_encoder):
         h = F.layer_norm(h, (h.size(-1),))  # normalize over feature-dim
     return h
 
-def forward_context(images, possition1, possition2, encoder, predictor, camera_brand):
-    # Change allocentric position
-    change_allocentric_position(possition1, possition2, camera_brand)
-    z = encoder(images)
-    z = predictor(z, possition1, possition2)
-    return z
+def forward_context(images, position1, position2, encoder, predictor,
+                    camera_brand, return_all_embeddings=False):
+    change_allocentric_position(position1, position2, camera_brand)
+    encoder_z = encoder(images)
+    pred_z = predictor(encoder_z, position1, position2)
+    if return_all_embeddings:
+        return pred_z, encoder_z
+    return pred_z
 
 def get_position_from_label(labels: Iterable[str]):
     positions = []
@@ -1249,7 +1251,7 @@ def dreamer(args, logger=None, resume_preempt=False):
         for idx in range(B):
             dream_dict = {
                 'state_sequence': state_sequences[:,idx],
-                'possition_sequence': position_sequences[:,idx],
+                'position_sequence': position_sequences[:,idx],
                 'reward_sequence': reward_sequences[:,idx],
                 'action_sequence': action_sequences[:,idx]
             }
@@ -1264,8 +1266,8 @@ def dreamer(args, logger=None, resume_preempt=False):
         z = encoder(images)
         return z
 
-    def forward_internal_representation(internal_state, possition1, possition2):
-        z, r = predictor(internal_state, possition1, possition2) 
+    def forward_internal_representation(internal_state, position1, position2):
+        z, r = predictor(internal_state, position1, position2) 
         return z, r
 
     def choose_random_action(actions):
@@ -1275,11 +1277,11 @@ def dreamer(args, logger=None, resume_preempt=False):
     def get_next_random_positions(positions, actions_set):
         next_positions = torch.zeros_like(positions)
         next_actions = []
-        for i, possition in enumerate(positions):
+        for i, position in enumerate(positions):
             ptz_command, action = choose_random_action(actions_set)
             ptz_command = torch.tensor(ptz_command).to(device)
             next_actions.append(action)
-            next_positions[i] = possition + ptz_command
+            next_positions[i] = position + ptz_command
 
         next_actions=torch.tensor(next_actions).to(device)
         return next_positions, next_actions
@@ -1296,10 +1298,10 @@ def dreamer(args, logger=None, resume_preempt=False):
         return loss
 
     # Change allocentric position
-    def change_allocentric_position(possition):
+    def change_allocentric_position(position):
         pan, tilt, _ = get_random_position(camera_brand)
-        possition[:,0] = possition[:,0] - pan
-        possition[:,1] = possition[:,1] - tilt
+        position[:,0] = position[:,0] - pan
+        position[:,1] = position[:,1] - tilt
 
     # -- DREAM LOOP
     for itr, (imgs, labls) in enumerate(dataloader):
