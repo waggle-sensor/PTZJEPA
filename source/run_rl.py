@@ -94,9 +94,9 @@ def agent_model(args, logger=None, resume_preempt=False):
     final_wd = float(args['optimization']['final_weight_decay'])
     num_epochs = args['optimization']['rl_epochs']
     warmup = args['optimization']['rl_warmup']
-    start_lr = args['optimization']['start_lr']
-    lr = args['optimization']['lr']
-    final_lr = args['optimization']['final_lr']
+    start_lr = args['optimization']['rl_start_lr']
+    lr = args['optimization']['rl_lr']
+    final_lr = args['optimization']['rl_final_lr']
 
     # -- PLATEAU
     patience = args['plateau']['rl_patience']
@@ -153,12 +153,26 @@ def agent_model(args, logger=None, resume_preempt=False):
 
     num_actions=len(actions.keys())
 
+
+    def change_ownership(folder):
+        for subdir, dirs, files in os.walk(folder):
+            os.chmod(subdir, 0o777)
+
+            for File in files:
+                os.chmod(os.path.join(subdir, File), 0o666)
+
+
+
+
     if not os.path.exists(folder):
         os.makedirs(folder)
+        change_ownership(folder)
 
-    model_ID='model_'+str(torch.randint(memory_models, (1,)).item())
+    model_ID='model_1'
+    #model_ID='model_'+str(torch.randint(memory_models, (1,)).item())
     if not os.path.exists(os.path.join(folder, model_ID)):
         os.makedirs(os.path.join(folder, model_ID))
+        change_ownership(os.path.join(folder, model_ID))
 
     dump = os.path.join(folder, model_ID, 'params-agent.yaml')
     with open(dump, 'w') as f:
@@ -206,6 +220,35 @@ def agent_model(args, logger=None, resume_preempt=False):
                            #('%.5f', 'mask-B'),
                            #('%d', 'time (ms)'))
 
+
+
+    def prepare_data(dataloader, size):
+        memory = ReplayMemory(size)
+        for itr, episodes in enumerate(dataloader):
+            for state_sequence, position_sequence, reward_sequence, action_sequence in zip(episodes['state_sequence'], episodes['possition_sequence'], episodes['reward_sequence'], episodes['action_sequence']):
+                for step, (state, position) in enumerate(zip(state_sequence, position_sequence)):
+                    if step < action_sequence.shape[0]:
+                        # pick next action
+                        action=action_sequence[step]
+ 
+                        # next state and position
+                        next_state=state_sequence[step+1]
+                        next_position=position_sequence[step+1]
+
+                        # reward
+                        reward=reward_sequence[step]
+
+                        # Store the transition in memory
+                        memory.push(state, position, action, next_state, next_position, reward)
+
+                        #if len(memory) > 0.9*size:
+                            #return memory
+
+        return memory
+
+
+
+
     # -- init world model
     encoder, policy_predictor = init_agent_model(
         device=device,
@@ -221,9 +264,12 @@ def agent_model(args, logger=None, resume_preempt=False):
     # -- init data-loader
     data = DreamDataset(dream_folder)
     dataloader = DataLoader(data, batch_size=batch_size, shuffle=True)
+
     ipe = len(dataloader)*dream_length
 
-
+    print('PREPARING DATA...')
+    memory = prepare_data(dataloader, len(dataloader)*batch_size*dream_length)
+    print('DONE!')
 
 
 
@@ -425,39 +471,7 @@ def agent_model(args, logger=None, resume_preempt=False):
 
 
 
-    def change_ownership(folder):
-        for subdir, dirs, files in os.walk(folder):
-            os.chmod(subdir, 0o777)
 
-            for File in files:
-                os.chmod(os.path.join(subdir, File), 0o666)
-
-
-
-
-    def prepare_data(dataloader, size):
-        memory = ReplayMemory(size)
-        for itr, episodes in enumerate(dataloader):
-            for state_sequence, position_sequence, reward_sequence, action_sequence in zip(episodes['state_sequence'], episodes['possition_sequence'], episodes['reward_sequence'], episodes['action_sequence']):
-                for step, (state, position) in enumerate(zip(state_sequence, position_sequence)):
-                    if step < action_sequence.shape[0]:
-                        # pick next action
-                        action=action_sequence[step]
- 
-                        # next state and position
-                        next_state=state_sequence[step+1]
-                        next_position=position_sequence[step+1]
-
-                        # reward
-                        reward=reward_sequence[step]
-
-                        # Store the transition in memory
-                        memory.push(state, position, action, next_state, next_position, reward)
-
-                        #if len(memory) > 0.9*size:
-                            #return memory
-
-        return memory
 
 
 
@@ -468,16 +482,14 @@ def agent_model(args, logger=None, resume_preempt=False):
     #memory = ReplayMemory(100000)
     loss_values = []
     for epoch in range(start_epoch, num_epochs):
-        print('PREPARING DATA...')
-        memory = prepare_data(dataloader, ipe*batch_size)
-        print('DONE!')
-        dataloader = DataLoader(data, batch_size=batch_size, shuffle=True)
+        #dataloader = DataLoader(data, batch_size=batch_size, shuffle=True)
         logger.info('Epoch %d' % (epoch + 1))
 
         loss_meter = AverageMeter()
         time_meter = AverageMeter()
 
-        for itr in range(len(memory)):
+        for itr in range(ipe):
+        #for itr in range(len(memory)):
             # Perform one step of the optimization (on the policy network)
             #optimize_model()
             #print('itr: ', itr)
@@ -507,8 +519,8 @@ def agent_model(args, logger=None, resume_preempt=False):
             with torch.no_grad():
                 m = next(momentum_scheduler)
                 for key in policy_predictor_state_dict:
-                    #target_predictor_state_dict[key] = policy_predictor_state_dict[key]*m + target_predictor_state_dict[key]*(1-m)
-                    target_predictor_state_dict[key] = policy_predictor_state_dict[key]*TAU + target_predictor_state_dict[key]*(1-TAU)
+                    target_predictor_state_dict[key] = policy_predictor_state_dict[key]*m + target_predictor_state_dict[key]*(1-m)
+                    #target_predictor_state_dict[key] = policy_predictor_state_dict[key]*TAU + target_predictor_state_dict[key]*(1-TAU)
             target_predictor.load_state_dict(target_predictor_state_dict)
 
         # -- Save Checkpoint after every epoch
