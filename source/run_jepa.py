@@ -37,6 +37,7 @@ log_freq = 10
 checkpoint_freq = 50000000000000
 # --
 
+
 def get_random_position(camera_brand):
     if camera_brand==0:
         pan_pos = np.random.randint(0, 360)
@@ -52,16 +53,16 @@ def get_random_position(camera_brand):
 # Change allocentric position
 def change_allocentric_position(possition1, possition2, camera_brand):
     pan, tilt, _ = get_random_position(camera_brand)
-    possition1[:,0] = possition1[:,0] - pan
-    possition1[:,1] = possition1[:,1] - tilt
-    possition2[:,0] = possition2[:,0] - pan
-    possition2[:,1] = possition2[:,1] - tilt
+    possition1[:,0] -= pan
+    possition1[:,1] -= tilt
+    possition2[:,0] -= pan
+    possition2[:,1] -= tilt
 
 def forward_target(images, target_encoder):
     with torch.no_grad():
         h = target_encoder(images)
         h = F.layer_norm(h, (h.size(-1),))  # normalize over feature-dim
-        return h
+    return h
 
 def forward_context(images, possition1, possition2, encoder, predictor, camera_brand):
     # Change allocentric position
@@ -69,10 +70,6 @@ def forward_context(images, possition1, possition2, encoder, predictor, camera_b
     z = encoder(images)
     z = predictor(z, possition1, possition2)
     return z
-
-def loss_fn(z, h):
-    loss = F.smooth_l1_loss(z, h)
-    return loss
 
 def get_position_from_label(labels: Iterable[str]):
     positions = []
@@ -85,17 +82,17 @@ def get_position_from_label(labels: Iterable[str]):
     return torch.tensor(positions)
 
 
-def arrage_inputs(images, possitions, device):
+def arrange_inputs(images, positions, device):
     context_imgs = []
     target_imgs = []
     context_poss = []
     target_poss = []
-    for context_idx in range(possitions.shape[0]):
-        for target_idx in range(possitions.shape[0]):
+    for context_idx in range(positions.shape[0]):
+        for target_idx in range(positions.shape[0]):
             context_imgs.append(images[context_idx].unsqueeze(0))
-            context_poss.append(possitions[context_idx].unsqueeze(0))
+            context_poss.append(positions[context_idx].unsqueeze(0))
             target_imgs.append(images[target_idx].unsqueeze(0))
-            target_poss.append(possitions[target_idx].unsqueeze(0))
+            target_poss.append(positions[target_idx].unsqueeze(0))
 
 
     auxiliary = torch.Tensor(len(context_imgs), context_imgs[0].shape[1],
@@ -324,15 +321,9 @@ def train(args, logger=None, resume_preempt=False):
         if (epoch + 1) % checkpoint_freq == 0:
             torch.save(save_dict, save_path.format(epoch=f'{epoch + 1}'))
 
-
-    def get_position_from_label(labels):
-        possitions = []
-        for label in labels:
-            poss = label.split('_')[0].split(',')
-            possitions.append([float(poss[0]), float(poss[1]), float(poss[2])])
-
-        return torch.tensor(possitions)
-
+    def loss_fn(z, h):
+        loss = F.smooth_l1_loss(z, h)
+        return loss
 
     def detect_plateau(loss_values, patience=5, threshold=1e-4):
         """
@@ -474,7 +465,7 @@ def train(args, logger=None, resume_preempt=False):
             imgs = imgs.to(device, non_blocking=True)
             poss = poss.to(device, non_blocking=True)
             
-            context_imgs, context_poss, target_imgs, target_poss = arrage_inputs(imgs, poss, device)
+            context_imgs, context_poss, target_imgs, target_poss = arrange_inputs(imgs, poss, device)
 
             if itr%int(global_batch_size/batch_size)==0:
                 (loss, _new_lr, _new_wd, grad_stats), etime = gpu_timer(train_step, arguments=[context_imgs, context_poss, target_imgs, target_poss])
@@ -721,17 +712,17 @@ def world_model(args, logger=None, resume_preempt=False):
 
 
 
-    def arrage_inputs(images, possitions):
+    def arrange_inputs(images, positions):
         context_imgs = []
         target_imgs = []
         context_poss = []
         target_poss = []
-        for context_idx in range(possitions.shape[0]):
-            for target_idx in range(possitions.shape[0]):
+        for context_idx in range(positions.shape[0]):
+            for target_idx in range(positions.shape[0]):
                 context_imgs.append(images[context_idx].unsqueeze(0))
-                context_poss.append(possitions[context_idx].unsqueeze(0))
+                context_poss.append(positions[context_idx].unsqueeze(0))
                 target_imgs.append(images[target_idx].unsqueeze(0))
-                target_poss.append(possitions[target_idx].unsqueeze(0))
+                target_poss.append(positions[target_idx].unsqueeze(0))
 
         auxiliary = torch.Tensor(len(context_imgs), context_imgs[0].shape[1],
                                                     context_imgs[0].shape[2],
@@ -803,22 +794,6 @@ def world_model(args, logger=None, resume_preempt=False):
 
 
 
-    def get_random_position():
-        if camera_brand==0:
-            pan_pos = np.random.randint(0, 360)
-            tilt_pos = np.random.randint(-90, 90)
-            zoom_pos = np.random.randint(1, 2)
-        elif camera_brand==1:
-            pan_pos = np.random.randint(-180, 180)
-            tilt_pos = np.random.randint(-180, 180)
-            zoom_pos = np.random.randint(100, 200)
-
-        return pan_pos, tilt_pos, zoom_pos
-
-
-
-
-
 
 
     def train_step(inputs):
@@ -827,16 +802,17 @@ def world_model(args, logger=None, resume_preempt=False):
         # --
 
         # Step 1. Auxiliary Forward
-        h = forward_target(inputs[2])
+        h = forward_target(inputs[2], target_encoder)
         with torch.no_grad():
-            z, r = forward_context(inputs[0], inputs[1], inputs[3])
+            z, r = forward_context(inputs[0], inputs[1], inputs[3],
+                                   encoder, predictor, camera_brand)
         auxiliary_loss = auxiliary_loss_fn(z, h)
 
         # Step 2. Auxiliary Backward
         auxiliary_loss.backward()
         grads = []
         for param in target_encoder.parameters():
-            if param.grad != None:
+            if param.grad is not None:
                 grads.append(param.grad.view(-1))
         grads = torch.cat(grads)
         g = grads.abs().sum()
@@ -844,8 +820,11 @@ def world_model(args, logger=None, resume_preempt=False):
 
         # Step 3. Forward
         with torch.no_grad():
-            h = forward_target(inputs[2])
-        z, r = forward_context(inputs[0], inputs[1], inputs[3])
+            # EMA update for target encoder
+            h = forward_target(inputs[2], target_encoder)
+        # Need to update the gradient
+        z, r = forward_context(inputs[0], inputs[1], inputs[3],
+                               encoder, predictor, camera_brand)
         loss = loss_fn(z, r, h, g)
 
         # Step 4. Backward & step
@@ -874,9 +853,10 @@ def world_model(args, logger=None, resume_preempt=False):
         # --
 
         # Step 1. Auxiliary Forward
-        h = forward_target(inputs[2])
+        h = forward_target(inputs[2], target_encoder)
         with torch.no_grad():
-            z, r = forward_context(inputs[0], inputs[1], inputs[3])
+            z, r = forward_context(inputs[0], inputs[1], inputs[3],
+                                   encoder, predictor, camera_brand)
         auxiliary_loss = auxiliary_loss_fn(z, h)
 
         # Step 2. Auxiliary Backward
@@ -891,8 +871,9 @@ def world_model(args, logger=None, resume_preempt=False):
 
         # Step 3. Forward
         with torch.no_grad():
-            h = forward_target(inputs[2])
-        z, r = forward_context(inputs[0], inputs[1], inputs[3])
+            h = forward_target(inputs[2], target_encoder)
+        z, r = forward_context(inputs[0], inputs[1], inputs[3],
+                               encoder, predictor, camera_brand)
         loss = loss_fn(z, r, h, g)
 
         # Step 4. Backward & step
@@ -911,25 +892,6 @@ def world_model(args, logger=None, resume_preempt=False):
 
         return (float(loss), _new_lr, _new_wd, grad_stats)
 
-
-
-
-
-
-
-
-
-    def forward_target(images):
-        h = target_encoder(images)
-        h = F.layer_norm(h, (h.size(-1),))  # normalize over feature-dim
-        return h
-
-    def forward_context(images, possition1, possition2):
-        # Change allocentric position
-        change_allocentric_position(possition1, possition2)
-        z = encoder(images)
-        z, r = predictor(z, possition1, possition2) 
-        return z, r
 
 
     def auxiliary_loss_fn(z, h):
@@ -966,17 +928,6 @@ def world_model(args, logger=None, resume_preempt=False):
                                grad_stats.min,
                                grad_stats.max))
 
-    # Change allocentric position
-    def change_allocentric_position(possition1, possition2):
-        pan, tilt, _ = get_random_position()
-        possition1[:,0] = possition1[:,0] - pan
-        possition1[:,1] = possition1[:,1] - tilt
-        possition2[:,0] = possition2[:,0] - pan
-        possition2[:,1] = possition2[:,1] - tilt
-
-
-
-
     # -- TRAINING LOOP
     change_ownership(os.path.join(folder, model_ID))
     loss_values = []
@@ -991,7 +942,7 @@ def world_model(args, logger=None, resume_preempt=False):
             imgs = imgs.to(device, non_blocking=True)
             poss = poss.to(device, non_blocking=True)
             
-            context_imgs, context_poss, target_imgs, target_poss = arrage_inputs(imgs, poss)
+            context_imgs, context_poss, target_imgs, target_poss = arrange_inputs(imgs, poss)
 
             if itr%int(global_batch_size/batch_size)==0:
                 (loss, _new_lr, _new_wd, grad_stats), etime = gpu_timer(train_step, arguments=[context_imgs, context_poss, target_imgs, target_poss])
@@ -1025,23 +976,6 @@ def world_model(args, logger=None, resume_preempt=False):
         shutil.rmtree(PATH)
 
     return True
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -1263,28 +1197,9 @@ def dreamer(args, logger=None, resume_preempt=False):
             for File in files:
                 os.chmod(os.path.join(subdir, File), 0o666)
 
-
-
-    def get_random_position():
-        if camera_brand==0:
-            pan_pos = np.random.randint(0, 360)
-            tilt_pos = np.random.randint(-90, 90)
-            zoom_pos = np.random.randint(1, 2)
-        elif camera_brand==1:
-            pan_pos = np.random.randint(-180, 180)
-            tilt_pos = np.random.randint(-180, 180)
-            zoom_pos = np.random.randint(100, 200)
-
-        return pan_pos, tilt_pos, zoom_pos
-
-
-
-
-
-
     def dream_step(inputs):
         images = inputs[0]
-        possitions = inputs[1]
+        positions = inputs[1]
         number_of_dreams = inputs[2]
 
         state_sequences = []
@@ -1296,27 +1211,27 @@ def dreamer(args, logger=None, resume_preempt=False):
         # Step 2. Iterate forwarding internal representations through the predictor
         for step in range(dream_length):
             state_sequences.append(internal_state.unsqueeze(0))
-            position_sequences.append(possitions.unsqueeze(0))
+            position_sequences.append(positions.unsqueeze(0))
 
-            next_possitions, next_actions = get_next_random_possitions(possitions, actions)
-            next_internal_state, next_reward = forward_internal_representation(internal_state, possitions, next_possitions)
+            next_positions, next_actions = get_next_random_positions(positions, actions)
+            next_internal_state, next_reward = forward_internal_representation(internal_state, positions, next_positions)
 
             internal_state = next_internal_state
-            possitions = next_possitions
+            positions = next_positions
             reward = next_reward.squeeze(-1)
             reward = reward.mean(-1)
             reward_sequences.append(reward.unsqueeze(0))
             action_sequences.append(next_actions.unsqueeze(0))
 
         state_sequences.append(internal_state.unsqueeze(0))
-        position_sequences.append(possitions.unsqueeze(0))
+        position_sequences.append(positions.unsqueeze(0))
 
         B, D1, D2 = internal_state.shape
         aux = torch.Tensor(len(state_sequences), B, D1, D2).to(device)
         torch.cat(state_sequences, out=aux)
         state_sequences=aux
 
-        B, D1 = possitions.shape
+        B, D1 = positions.shape
         aux = torch.Tensor(len(position_sequences), B, D1).to(device)
         torch.cat(position_sequences, out=aux)
         position_sequences=aux
@@ -1345,9 +1260,6 @@ def dreamer(args, logger=None, resume_preempt=False):
         return 0
 
 
-
-
-
     def get_internal_representation(images):
         z = encoder(images)
         return z
@@ -1360,17 +1272,17 @@ def dreamer(args, logger=None, resume_preempt=False):
         action=np.random.randint(len(actions.keys()))
         return actions[action], action
 
-    def get_next_random_possitions(possitions, actions_set):
-        next_possitions = torch.zeros_like(possitions)
+    def get_next_random_positions(positions, actions_set):
+        next_positions = torch.zeros_like(positions)
         next_actions = []
-        for i, possition in enumerate(possitions):
+        for i, possition in enumerate(positions):
             ptz_command, action = choose_random_action(actions_set)
             ptz_command = torch.tensor(ptz_command).to(device)
             next_actions.append(action)
-            next_possitions[i] = possition + ptz_command
+            next_positions[i] = possition + ptz_command
 
         next_actions=torch.tensor(next_actions).to(device)
-        return next_possitions, next_actions
+        return next_positions, next_actions
 
 
     def auxiliary_loss_fn(z, h):
@@ -1383,14 +1295,11 @@ def dreamer(args, logger=None, resume_preempt=False):
         loss = loss1 + loss2
         return loss
 
-
     # Change allocentric position
     def change_allocentric_position(possition):
-        pan, tilt, _ = get_random_position()
+        pan, tilt, _ = get_random_position(camera_brand)
         possition[:,0] = possition[:,0] - pan
         possition[:,1] = possition[:,1] - tilt
-
-
 
     # -- DREAM LOOP
     for itr, (imgs, labls) in enumerate(dataloader):
