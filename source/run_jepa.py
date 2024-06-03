@@ -104,8 +104,19 @@ def train(args, logger=None, resume_preempt=False):
     ownership_folder = args['logging']['ownership_folder']
     tag = args['logging']['write_tag']
 
+
+    def change_ownership(folder):
+        for subdir, dirs, files in os.walk(folder):
+            os.chmod(subdir, 0o777)
+
+            for File in files:
+                os.chmod(os.path.join(subdir, File), 0o666)
+
+
+
     if not os.path.exists(folder):
         os.makedirs(folder)
+        change_ownership(folder)
 
     dump = os.path.join(folder, 'params-ijepa.yaml')
     with open(dump, 'w') as f:
@@ -310,13 +321,6 @@ def train(args, logger=None, resume_preempt=False):
             return False  # Loss has not plateaued
 
 
-
-    def change_ownership(folder):
-        for subdir, dirs, files in os.walk(folder):
-            os.chmod(subdir, 0o777)
-
-            for File in files:
-                os.chmod(os.path.join(subdir, File), 0o666)
 
     def get_random_position():
         if camera_brand==0:
@@ -577,12 +581,25 @@ def world_model(args, logger=None, resume_preempt=False):
     # -- MEMORY
     memory_models = args['memory']['models']
 
+
+
+    def change_ownership(folder):
+        for subdir, dirs, files in os.walk(folder):
+            os.chmod(subdir, 0o777)
+
+            for File in files:
+                os.chmod(os.path.join(subdir, File), 0o666)
+
+
+
     if not os.path.exists(folder):
         os.makedirs(folder)
+        change_ownership(folder)
 
     model_ID='model_'+str(torch.randint(memory_models, (1,)).item())
     if not os.path.exists(os.path.join(folder, model_ID)):
         os.makedirs(os.path.join(folder, model_ID))
+        change_ownership(os.path.join(folder, model_ID))
 
     dump = os.path.join(folder, model_ID, 'params-ijepa.yaml')
     with open(dump, 'w') as f:
@@ -791,13 +808,6 @@ def world_model(args, logger=None, resume_preempt=False):
 
 
 
-
-    def change_ownership(folder):
-        for subdir, dirs, files in os.walk(folder):
-            os.chmod(subdir, 0o777)
-
-            for File in files:
-                os.chmod(os.path.join(subdir, File), 0o666)
 
 
 
@@ -1156,13 +1166,25 @@ def dreamer(args, logger=None, resume_preempt=False):
     # -- MEMORY
     memory_dreams = args['memory']['dreams']
 
+
+
+    def change_ownership(folder):
+        for subdir, dirs, files in os.walk(folder):
+            os.chmod(subdir, 0o777)
+
+            for File in files:
+                os.chmod(os.path.join(subdir, File), 0o666)
+
+
     
     if not os.path.exists(folder):
         os.makedirs(folder)
+        change_ownership(folder)
 
     dream_ID='dream_'+str(torch.randint(memory_dreams, (1,)).item())
     if not os.path.exists(os.path.join(dream_folder, dream_ID)):
         os.makedirs(os.path.join(dream_folder, dream_ID))
+        change_ownership(os.path.join(folder, dream_ID))
 
     models=[]
     for subdir in os.listdir(folder):
@@ -1255,13 +1277,6 @@ def dreamer(args, logger=None, resume_preempt=False):
         torch.save(dream_dict, dream_save_path.format(dream=f'{dream_id}'))
 
 
-
-    def change_ownership(folder):
-        for subdir, dirs, files in os.walk(folder):
-            os.chmod(subdir, 0o777)
-
-            for File in files:
-                os.chmod(os.path.join(subdir, File), 0o666)
 
 
 
