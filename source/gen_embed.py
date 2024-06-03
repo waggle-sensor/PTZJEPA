@@ -7,17 +7,15 @@ from pathlib import Path
 import yaml
 import numpy as np
 from argparse import ArgumentParser
-from .helper import init_model
-from .run_jepa import (
+from helper import init_model
+from run_jepa import (
     get_position_from_label,
     forward_context,
     arrange_inputs,
     forward_target,
 )
-from .transforms import make_transforms
-
-sys.path.append("../datasets")
-from ptz_dataset import PTZImageDataset
+from transforms import make_transforms
+from datasets.ptz_dataset import PTZImageDataset
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logger = logging.getLogger()
@@ -55,6 +53,11 @@ def generate_embedding(
 ):
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
+    output_dir = Path(output_dir)
+    img_dir = Path(img_dir)
+    if not output_dir.exists():
+        logger.info("Creating output directory")
+        output_dir.mkdir()
     logger.info("Loading parameters")
     with open(config_fpath, "r") as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
@@ -121,16 +124,13 @@ def generate_embedding(
         contx_encoder_embed.append(contx_enc_embed.numpy())
         predictor_embed.append(contx_pred_embed.numpy())
         target_encoder_embed.append(tar_embed.numpy())
-        labels.append(label)
-        if i % 100 == 0:
+        labels += list(label)
+        if i and i % 100 == 0:
             logger.info("Processed %d/%d", i, ipe)
-            np.array(contx_encoder_embed).dump(
-                Path(output_dir, "embeds_contx_encoder.npy")
-            )
-            np.array(predictor_embed).dump(Path(output_dir, "embeds_predictor.npy"))
-            np.array(target_encoder_embed).dump(
-                Path(output_dir, "embeds_target_encoder.npy")
-            )
+            save_data = lambda arr, fpath: np.vstack(np.array(arr)).dump(fpath)
+            save_data(contx_encoder_embed, output_dir / "embeds_contx_encoder.npy")
+            save_data(predictor_embed, output_dir / "embeds_predictor.npy")
+            save_data(target_encoder_embed, output_dir / "embeds_target_encoder.npy")
             with open(output_dir / "labels.txt", "w") as fp:
                 fp.write("\n".join(labels))
 
