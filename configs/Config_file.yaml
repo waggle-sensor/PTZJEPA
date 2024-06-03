@@ -5,6 +5,8 @@ data:
   #batch_size: 128
   rl_batch_size: 64
   #rl_batch_size: 16
+  #rl_batch_size: 8
+  #rl_batch_size: 4
   color_jitter_strength: 0.0
   crop_scale:
   - 0.98
@@ -44,6 +46,7 @@ meta:
   load_checkpoint: true
   #model_name: vit_micro
   model_name: vit_tiny
+  #agent_model_name: vit_base
   agent_model_name: vit_tiny
   #model_name: vit_huge
   pred_depth: 12
@@ -53,25 +56,32 @@ meta:
   use_bfloat16: true
 optimization:
   ema:
-  - 0.996
-  - 1.0
+  - 0.0005
+  - 0.00005
+  #ema:
+  #- 0.996
+  #- 1.0
   epochs: 100
   #epochs: 1000
   rl_epochs: 100
   #rl_epochs: 300
-  #final_lr: 1.0e-07
+  rl_final_lr: 1.0e-06
+  #rl_final_lr: 1.0e-07
   final_lr: 1.0e-06
   #final_weight_decay: 2.0
   final_weight_decay: 0.4
   ipe_scale: 1.0
-  #lr: 0.00001
+  rl_lr: 0.0001
+  #rl_lr: 0.00001
   lr: 0.0001
   start_lr: 0.000002
+  rl_start_lr: 0.000002
   warmup: 5
   #warmup: 10
   #weight_decay: 0.5
   weight_decay: 0.04
-  TAU: 0.005
+  TAU: 0.0005
+  #TAU: 0.005
   rl_warmup: 5
   #rl_warmup: 10
 plateau:
@@ -85,12 +95,13 @@ plateau:
 memory:
   models: 100
   memory_models: 100
-  dreams: 15
+  dreams: 50
+  #dreams: 15
   #dreams: 10
   rl_models: 100
 dreamer:
-  number_of_dreams: 15
-  #number_of_dreams: 20
+  #number_of_dreams: 15
+  number_of_dreams: 20
   dream_length: 10
 action:
   short:
