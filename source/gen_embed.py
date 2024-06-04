@@ -45,6 +45,12 @@ def parse_args():
         type=str,
         help="path to the output directory",
     )
+    parser.add_argument(
+        "--device",
+        type=str,
+        default=None,
+        help="device to run the model on",
+    )
     return parser.parse_args()
 
 
@@ -142,5 +148,6 @@ if __name__ == "__main__":
         args.checkpoint_fpath,
         args.img_dir,
         args.output_dir,
+        args.device
     )
     
