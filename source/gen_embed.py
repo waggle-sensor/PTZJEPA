@@ -129,9 +129,9 @@ def generate_embedding(
                 return_all_embeddings=True,
             )
             tar_embed = forward_target(target_imgs, target_encoder)
-        contx_encoder_embed.append(contx_enc_embed.numpy())
-        predictor_embed.append(contx_pred_embed.numpy())
-        target_encoder_embed.append(tar_embed.numpy())
+        contx_encoder_embed.append(contx_enc_embed.cpu().numpy())
+        predictor_embed.append(contx_pred_embed.cpu().numpy())
+        target_encoder_embed.append(tar_embed.cpu().numpy())
         labels += list(label)
         if i and i % 100 == 0:
             logger.info("Processed %d/%d", i, ipe)
