@@ -113,6 +113,8 @@ def generate_embedding(
     target_encoder_embed = []
     for i, (img, label) in enumerate(dataloader):
         pos = get_position_from_label(label)
+        img = img.to(device, non_blocking=True)
+        label = label.to(device, non_blocking=True)
         context_imgs, context_poss, target_imgs, target_poss = arrange_inputs(
             img, pos, device
         )
