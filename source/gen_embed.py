@@ -79,7 +79,7 @@ def generate_embedding(
     # load model
     logger.info("Loading model")
     encoder, predictor = init_model(
-        device="cpu",
+        device=device,
         patch_size=patch_size,
         crop_size=crop_size,
         pred_depth=pred_depth,
