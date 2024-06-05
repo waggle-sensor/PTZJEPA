@@ -259,7 +259,7 @@ def train(args, logger=None, resume_preempt=False):
 
 
     # -- init data-loader
-    data = PTZImageDataset('./labels', './collected_imgs', transform=transform)
+    data = PTZImageDataset('./collected_imgs', transform=transform)
     dataloader = DataLoader(data, batch_size=batch_size, shuffle=False)
     ipe = len(dataloader)
 
@@ -640,7 +640,7 @@ def world_model(args, logger=None, resume_preempt=False):
 
 
     # -- init data-loader
-    data = PTZImageDataset('./labels', './collected_imgs', transform=transform)
+    data = PTZImageDataset('./collected_imgs', transform=transform)
     dataloader = DataLoader(data, batch_size=batch_size, shuffle=False)
     ipe = len(dataloader)
     #ipe = int(len(dataloader)*(batch_size/global_batch_size))
@@ -1160,7 +1160,7 @@ def dreamer(args, logger=None, resume_preempt=False):
 
 
     # -- init data-loader
-    data = PTZImageDataset('./labels', './collected_imgs', transform=transform)
+    data = PTZImageDataset('./collected_imgs', transform=transform)
     dataloader = DataLoader(data, batch_size=batch_size, shuffle=True)
     ipe = len(dataloader)
 
