@@ -109,35 +109,36 @@ def generate_embedding(
     logger.info("Starting inference")
     labels = []
     contx_encoder_embed = []
-    predictor_embed = []
+    # predictor_embed = []
     target_encoder_embed = []
     for i, (img, label) in enumerate(dataloader):
         pos = get_position_from_label(label)
         img = img.to(device, non_blocking=True)
         pos = pos.to(device, non_blocking=True)
-        context_imgs, context_poss, target_imgs, target_poss = arrange_inputs(
-            img, pos, device
-        )
+        # context_imgs, context_poss, target_imgs, target_poss = arrange_inputs(
+        #     img, pos, device
+        # )
         with torch.no_grad():
-            contx_enc_embed, contx_pred_embed = forward_context(
-                context_imgs,
-                context_poss,
-                target_poss,
-                encoder,
-                predictor,
-                camera_brand,
-                return_all_embeddings=True,
-            )
-            tar_embed = forward_target(target_imgs, target_encoder)
+            # contx_enc_embed, contx_pred_embed = forward_context(
+            #     context_imgs,
+            #     context_poss,
+            #     target_poss,
+            #     encoder,
+            #     predictor,
+            #     camera_brand,
+            #     return_all_embeddings=True,
+            # )
+            contx_enc_embed = encoder.forward(img)
+            tar_embed = forward_target(img, target_encoder)
         contx_encoder_embed.append(contx_enc_embed.cpu().numpy())
-        predictor_embed.append(contx_pred_embed.cpu().numpy())
+        # predictor_embed.append(contx_pred_embed.cpu().numpy())
         target_encoder_embed.append(tar_embed.cpu().numpy())
         labels += list(label)
         if i and i % 100 == 0:
             logger.info("Processed %d/%d", i, ipe)
             save_data = lambda arr, fpath: np.vstack(np.array(arr)).dump(fpath)
             save_data(contx_encoder_embed, output_dir / "embeds_contx_encoder.npy")
-            save_data(predictor_embed, output_dir / "embeds_predictor.npy")
+            # save_data(predictor_embed, output_dir / "embeds_predictor.npy")
             save_data(target_encoder_embed, output_dir / "embeds_target_encoder.npy")
             with open(output_dir / "labels.txt", "w") as fp:
                 fp.write("\n".join(labels))
