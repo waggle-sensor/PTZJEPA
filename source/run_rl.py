@@ -168,8 +168,7 @@ def agent_model(args, logger=None, resume_preempt=False):
         os.makedirs(folder)
         change_ownership(folder)
 
-    model_ID='model_1'
-    #model_ID='model_'+str(torch.randint(memory_models, (1,)).item())
+    model_ID='model_'+str(torch.randint(memory_models, (1,)).item())
     if not os.path.exists(os.path.join(folder, model_ID)):
         os.makedirs(os.path.join(folder, model_ID))
         change_ownership(os.path.join(folder, model_ID))
@@ -529,12 +528,15 @@ def agent_model(args, logger=None, resume_preempt=False):
         save_checkpoint(epoch+1)
         change_ownership(ownership_folder)
 
-
-
-
-
         if detect_plateau(loss_values, patience=patience, threshold=threshold):
             return False
+
+
+    if start_epoch == num_epochs:
+        PATH, FILE = os.path.split(policy_latest_path)
+        shutil.rmtree(PATH)
+        PATH, FILE = os.path.split(target_latest_path)
+        shutil.rmtree(PATH)
 
 
     return True
