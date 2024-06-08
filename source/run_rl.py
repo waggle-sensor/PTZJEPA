@@ -88,7 +88,7 @@ def agent_model(args, logger=None, resume_preempt=False):
 
     # -- OPTIMIZATION
     TAU = args['optimization']['TAU']
-    ema = args['optimization']['ema']
+    ema = args['optimization']['rl_ema']
     ipe_scale = args['optimization']['ipe_scale']  # scheduler scale factor (def: 1.0)
     wd = float(args['optimization']['weight_decay'])
     final_wd = float(args['optimization']['final_weight_decay'])
