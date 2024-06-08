@@ -55,12 +55,12 @@ meta:
   #use_bfloat16: false
   use_bfloat16: true
 optimization:
-  ema:
+  rl_ema:
   - 0.0005
   - 0.00005
-  #ema:
-  #- 0.996
-  #- 1.0
+  ema:
+  - 0.996
+  - 1.0
   epochs: 100
   #epochs: 1000
   rl_epochs: 100
