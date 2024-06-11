@@ -125,6 +125,14 @@ def arrange_inputs(images, positions, device):
     return context_imgs.to(device), context_poss.to(device), target_imgs.to(device), target_poss.to(device)
 
 
+def change_ownership(folder):
+    for subdir, dirs, files in os.walk(folder):
+        os.chmod(subdir, 0o777)
+
+        for File in files:
+            os.chmod(os.path.join(subdir, File), 0o666)
+
+
 def train(args, logger=None, resume_preempt=False):
     # ----------------------------------------------------------------------- #
     #  PASSED IN PARAMS FROM CONFIG FILE
@@ -361,17 +369,6 @@ def train(args, logger=None, resume_preempt=False):
             return True  # Loss has plateaued
         else:
             return False  # Loss has not plateaued
-
-
-
-    def change_ownership(folder):
-        for subdir, dirs, files in os.walk(folder):
-            os.chmod(subdir, 0o777)
-
-            for File in files:
-                os.chmod(os.path.join(subdir, File), 0o666)
-
-
 
 
     def train_step(inputs):
@@ -809,18 +806,6 @@ def world_model(args, logger=None, resume_preempt=False):
 
 
 
-    def change_ownership(folder):
-        for subdir, dirs, files in os.walk(folder):
-            os.chmod(subdir, 0o777)
-
-            for File in files:
-                os.chmod(os.path.join(subdir, File), 0o666)
-
-
-
-
-
-
 
     def train_step(inputs):
         _new_lr = scheduler.step()
@@ -1226,14 +1211,6 @@ def dreamer(args, logger=None, resume_preempt=False):
     def save_dreams(dream_id, dream_dict):
         torch.save(dream_dict, dream_save_path.format(dream=f'{dream_id}'))
 
-
-
-    def change_ownership(folder):
-        for subdir, dirs, files in os.walk(folder):
-            os.chmod(subdir, 0o777)
-
-            for File in files:
-                os.chmod(os.path.join(subdir, File), 0o666)
 
     def dream_step(inputs):
         images = inputs[0]
