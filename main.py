@@ -23,6 +23,7 @@ from waggle.plugin import Plugin
 
 from source.run_jepa import run as run_jepa
 from source.run_rl import run as run_rl
+from source.env_interaction import run as env_inter
 
 import torch
 
@@ -300,6 +301,10 @@ def behavior_learning(arguments):
         prepare_dreams()
         training_complete = run_rl(arguments.fname, 'train_agent')
 
+def environment_interaction(arguments):
+    interaction_complete = env_inter(arguments, arguments.fname, 'navigate_env')
+    print('interaction_complete: ', interaction_complete)
+
 def lifelong_learning(arguments): 
     while True:
         operate_ptz(arguments)
@@ -338,7 +343,7 @@ def main():
                         type=str, default='')
     parser.add_argument("-rm", "--run_mode",
                         help="The mode to run the code.",
-                        choices=['train', 'world_model_train', 'dream', 'agent_train', 'lifelong'],
+                        choices=['train', 'world_model_train', 'dream', 'agent_train', 'env_interaction', 'lifelong'],
                         type=str, default='train')
 
     # Joint Embedding Predictive Architecture (JEPA)
@@ -359,6 +364,8 @@ def main():
        dreamer_wrapper(args)
     elif args.run_mode=='agent_train':
        behavior_learning(args)
+    elif args.run_mode=='env_interaction':
+       environment_interaction(args)
     elif args.run_mode=='lifelong':
        lifelong_learning(args)
 
