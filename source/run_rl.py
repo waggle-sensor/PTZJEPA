@@ -248,7 +248,7 @@ def agent_model(args, logger=None, resume_preempt=False):
 
 
 
-    # -- init world model
+    # -- init agent model
     encoder, policy_predictor = init_agent_model(
         device=device,
         patch_size=patch_size,
