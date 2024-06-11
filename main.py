@@ -247,11 +247,15 @@ def operate_ptz(args):
 
 
 def get_images_from_storage(args):
+    import shutil
     if args.storedimages:
         src=os.path.join('/persistence', 'collected_imgs')
         dest='./collected_imgs'
-        if not os.path.exists(dest):
-            os.makedirs(dest)
+        if os.path.exists(dest):
+            # remove the directory and its contents
+            # this ensure only images from persistence are used
+            shutil.rmtree(dest)
+        os.mkdir(dest, mode=0o555)
 
         src_files = os.listdir(src)
         for file_name in src_files:
