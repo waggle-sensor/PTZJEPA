@@ -202,15 +202,6 @@ def train(args, logger=None, resume_preempt=False):
     tag = args['logging']['write_tag']
 
 
-    def change_ownership(folder):
-        for subdir, dirs, files in os.walk(folder):
-            os.chmod(subdir, 0o777)
-
-            for File in files:
-                os.chmod(os.path.join(subdir, File), 0o666)
-
-
-
     if not os.path.exists(folder):
         os.makedirs(folder)
         change_ownership(folder)
@@ -586,15 +577,6 @@ def world_model(args, logger=None, resume_preempt=False):
 
     # -- MEMORY
     memory_models = args['memory']['models']
-
-
-
-    def change_ownership(folder):
-        for subdir, dirs, files in os.walk(folder):
-            os.chmod(subdir, 0o777)
-
-            for File in files:
-                os.chmod(os.path.join(subdir, File), 0o666)
 
 
 
@@ -1100,15 +1082,6 @@ def dreamer(args, logger=None, resume_preempt=False):
 
     # -- MEMORY
     memory_dreams = args['memory']['dreams']
-
-
-
-    def change_ownership(folder):
-        for subdir, dirs, files in os.walk(folder):
-            os.chmod(subdir, 0o777)
-
-            for File in files:
-                os.chmod(os.path.join(subdir, File), 0o666)
 
 
     

@@ -256,7 +256,7 @@ def get_images_from_storage(args):
             # remove the directory and its contents
             # this ensure only images from persistence are used
             shutil.rmtree(dest)
-        os.mkdir(dest, mode=0o555)
+        os.mkdir(dest, mode=0o777)
 
         src_files = os.listdir(src)
         for file_name in src_files:
