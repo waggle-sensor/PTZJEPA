@@ -272,7 +272,7 @@ def train(args, logger=None, resume_preempt=False):
     data = PTZImageDataset('./collected_imgs', transform=transform)
     dataloader = DataLoader(data, batch_size=batch_size, shuffle=False)
     ipe = len(dataloader)
-
+    logger.info('Dataset size: %d' % ipe)
 
 
     # -- init optimizer and scheduler
