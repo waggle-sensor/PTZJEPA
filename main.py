@@ -61,7 +61,7 @@ def grab_image(camera, args):
     # ct stores current time
     ct = str(datetime.datetime.now())
     try:
-        camera.snap_shot("./imgs/" + pos_str + ct + ".jpg")
+        camera.snap_shot("/imgs/" + pos_str + ct + ".jpg")
     except:
         with Plugin() as plugin:
             plugin.publish(
@@ -79,14 +79,10 @@ def tar_images(output_filename, folder_to_archive):
 
 
 def publish_images():
-    # run tar -cvf images.tar ./imgs
-    tar_images("images.tar", "./imgs")
-    files = glob.glob("./imgs/*.jpg", recursive=True)
-    for f in files:
-        try:
-            os.remove(f)
-        except OSError as e:
-            print("Error: %s : %s" % (f, e.strerror))
+    # run tar -cvf images.tar /imgs
+    tar_images("images.tar", "/imgs")
+    # files = glob.glob("/imgs/*.jpg", recursive=True)
+    shutil.rmtree("/imgs", ignore_errors=True)
 
     with Plugin() as plugin:
         ct = str(datetime.datetime.now())
@@ -95,11 +91,11 @@ def publish_images():
 
 
 def collect_images(keepimages):
-    directory = "./collected_imgs"
+    directory = "/collected_imgs"
     if not os.path.exists(directory):
         os.makedirs(directory, mode=0o777)
 
-    files = glob.glob("./imgs/*.jpg", recursive=True)
+    files = glob.glob("/imgs/*.jpg", recursive=True)
     for f in files:
         try:
             os.rename(f, os.path.join(directory, os.path.basename(f)))
@@ -107,7 +103,7 @@ def collect_images(keepimages):
             print("Error: %s : %s" % (f, e.strerror))
 
     if keepimages:
-        src = "./collected_imgs"
+        src = "/collected_imgs"
         dest = os.path.join("/persistence", "collected_imgs")
         if not os.path.exists(dest):
             os.makedirs(dest)
@@ -119,12 +115,15 @@ def collect_images(keepimages):
 
 
 def prepare_images():
+    """Prepare images for training.
+    Check if all images are valid and remove invalid ones.
+    """
     labels = []
-    files = glob.glob("./collected_imgs/*.jpg", recursive=True)
+    files = glob.glob("/collected_imgs/*.jpg", recursive=True)
     for f in files:
         try:
-            image = Image.open(f)
-            image.save(f)
+            with Image.open(f) as image:
+                image.verify()
             labels.append(os.path.splitext(os.path.basename(f))[0])
         except OSError as e:
             os.remove(f)
@@ -137,7 +136,7 @@ def prepare_images():
 
 def prepare_dreams():
     labels = []
-    files = glob.glob("./collected_imgs/*.jpg", recursive=True)
+    files = glob.glob("/collected_imgs/*.jpg", recursive=True)
     for f in files:
         try:
             image = Image.open(f)
@@ -219,14 +218,14 @@ def operate_ptz(args):
             "the.number.of.images.recorded.by.iteration.is", number_of_commands
         )
 
-    directory = "./collected_imgs"
+    directory = "/collected_imgs"
     if os.path.exists(directory):
         shutil.rmtree(directory)
     for iteration in range(iterations):
         with Plugin() as plugin:
             plugin.publish("iteration.number", iteration)
 
-        os.mkdir("./imgs")
+        os.mkdir("/imgs")
         PAN = np.random.choice(pan_values, number_of_commands)
         TILT = np.random.choice(tilt_values, number_of_commands)
         ZOOM = np.random.choice(zoom_values, number_of_commands)
@@ -250,7 +249,7 @@ def operate_ptz(args):
 
         # publish_images()
         collect_images(args.keepimages)
-        os.rmdir("./imgs")
+        os.rmdir("/imgs")
 
     if args.camerabrand == 0:
         Camera1.absolute_control(1, 1, 1)
@@ -268,7 +267,7 @@ def get_images_from_storage(args):
 
     if args.storedimages:
         src = os.path.join("/persistence", "collected_imgs")
-        dest = "./collected_imgs"
+        dest = "/collected_imgs"
         if os.path.exists(dest):
             # remove the directory and its contents
             # this ensure only images from persistence are used
