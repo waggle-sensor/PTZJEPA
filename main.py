@@ -263,8 +263,6 @@ def operate_ptz(args):
 
 
 def get_images_from_storage(args):
-    import shutil
-
     if args.storedimages:
         src = os.path.join("/persistence", "collected_imgs")
         dest = "/collected_imgs"
