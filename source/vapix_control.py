@@ -387,7 +387,7 @@ class CameraControl:
         start_time = time.time()
         lap = 0.0
         while lap < FOCUS_THRESHOLD:
-            url = 'http://' + self.__cam_user + ':' + self.__cam_password + '@' + self.__cam_ip + '/jpg/1/image.jpg'
+            url = 'http://' + self.__cam_user + ':' + self.__cam_password + self.__cam_ip + '/jpg/1/image.jpg'
             os.system("wget " + url + ' -O ' + directory.replace(' ', '_'))
             time.sleep(1)
 
