@@ -8,9 +8,9 @@ import shutil
 import glob
 import yaml
 import csv
-import os.path
 import traceback
 import subprocess
+from pathlib import Path
 
 import argparse
 
@@ -26,6 +26,14 @@ from source.run_rl import run as run_rl
 from source.env_interaction import run as env_inter
 
 import torch
+
+
+coll_dir = Path("/collected_imgs")
+coll_dir.mkdir(exist_ok=True, mode=0o777)
+tmp_dir = Path("/imgs")
+tmp_dir.mkdir(exist_ok=True, mode=0o777)
+persis_dir = Path("/persistence")
+persis_dir.mkdir(exist_ok=True, mode=0o777)
 
 
 def set_random_position(camera, args):
@@ -61,7 +69,7 @@ def grab_image(camera, args):
     # ct stores current time
     ct = str(datetime.datetime.now())
     try:
-        camera.snap_shot("/imgs/" + pos_str + ct + ".jpg")
+        camera.snap_shot(str(tmp_dir / (pos_str + ct + ".jpg")))
     except:
         with Plugin() as plugin:
             plugin.publish(
@@ -80,9 +88,9 @@ def tar_images(output_filename, folder_to_archive):
 
 def publish_images():
     # run tar -cvf images.tar /imgs
-    tar_images("images.tar", "/imgs")
+    tar_images("images.tar", str(tmp_dir))
     # files = glob.glob("/imgs/*.jpg", recursive=True)
-    shutil.rmtree("/imgs", ignore_errors=True)
+    shutil.rmtree(tmp_dir, ignore_errors=True)
 
     with Plugin() as plugin:
         ct = str(datetime.datetime.now())
@@ -91,27 +99,22 @@ def publish_images():
 
 
 def collect_images(keepimages):
-    directory = "/collected_imgs"
-    if not os.path.exists(directory):
-        os.makedirs(directory, mode=0o777)
-
-    files = glob.glob("/imgs/*.jpg", recursive=True)
-    for f in files:
+    coll_dir.mkdir(exist_ok=True, mode=0o777)
+    # files = glob.glob("/imgs/*.jpg", recursive=True)
+    for fp in tmp_dir.glob("*.jpg"):
         try:
-            os.rename(f, os.path.join(directory, os.path.basename(f)))
+            fp.rename(coll_dir / fp.name)
         except OSError as e:
-            print("Error: %s : %s" % (f, e.strerror))
+            print("Error: %s : %s" % (fp, e.strerror))
 
     if keepimages:
-        src = "/collected_imgs"
-        dest = os.path.join("/persistence", "collected_imgs")
-        if not os.path.exists(dest):
-            os.makedirs(dest)
-        src_files = os.listdir(src)
-        for file_name in src_files:
-            full_file_name = os.path.join(src, file_name)
-            if os.path.isfile(full_file_name):
-                shutil.copy(full_file_name, dest)
+        dest = persis_dir / "collected_imgs"
+        dest.mkdir(exist_ok=True, mode=0o777)
+        for fp in coll_dir.glob("*.jpg"):
+            try:
+                shutil.copy(fp, dest)
+            except OSError as e:
+                print("Error: %s : %s" % (fp, e.strerror))
 
 
 def prepare_images():
@@ -119,22 +122,22 @@ def prepare_images():
     Check if all images are valid and remove invalid ones.
     """
     labels = []
-    files = glob.glob("/collected_imgs/*.jpg", recursive=True)
-    for f in files:
+    for fp in coll_dir.glob("*.jpg"):
         try:
-            with Image.open(f) as image:
+            with Image.open(fp) as image:
                 image.verify()
-            labels.append(os.path.splitext(os.path.basename(f))[0])
+            labels.append(fp.stem)
         except OSError as e:
-            os.remove(f)
-            print("Error: %s : %s" % (f, e.strerror))
-
+            fp.unlink()
+            print("Error: %s : %s" % (fp, e.strerror))
     df = pd.DataFrame(labels)
-    df.to_csv("./labels", header=None, index=False)
+    df.to_csv("./labels.txt", header=None, index=False)
     print("Number of labels: ", df.size)
 
 
 def prepare_dreams():
+    # ! Might need to change this part in future
+    # ! this function duplicates the function prepare_images
     labels = []
     files = glob.glob("/collected_imgs/*.jpg", recursive=True)
     for f in files:
@@ -161,7 +164,7 @@ def operate_ptz(args):
 
         # from source import onvif_control as sunapi_control
     else:
-        print("Not known camera brand number: ", args.camerabrand)
+        raise ValueError("Not known camera brand number: ", args.camerabrand)
 
     iterations = args.iterations
     number_of_commands = args.movements
@@ -218,14 +221,13 @@ def operate_ptz(args):
             "the.number.of.images.recorded.by.iteration.is", number_of_commands
         )
 
-    directory = "/collected_imgs"
-    if os.path.exists(directory):
-        shutil.rmtree(directory)
+    if coll_dir.exists():
+        shutil.rmtree(coll_dir, ignore_errors=True)
     for iteration in range(iterations):
         with Plugin() as plugin:
             plugin.publish("iteration.number", iteration)
 
-        os.mkdir("/imgs")
+        tmp_dir.mkdir(exist_ok=True, mode=0o777)
         PAN = np.random.choice(pan_values, number_of_commands)
         TILT = np.random.choice(tilt_values, number_of_commands)
         ZOOM = np.random.choice(zoom_values, number_of_commands)
@@ -249,7 +251,7 @@ def operate_ptz(args):
 
         # publish_images()
         collect_images(args.keepimages)
-        os.rmdir("/imgs")
+        shutil.rmtree(tmp_dir, ignore_errors=True)
 
     if args.camerabrand == 0:
         Camera1.absolute_control(1, 1, 1)
@@ -263,22 +265,19 @@ def operate_ptz(args):
 
 
 def get_images_from_storage(args):
-    if args.storedimages:
-        src = os.path.join("/persistence", "collected_imgs")
-        dest = "/collected_imgs"
-        if os.path.exists(dest):
+    if not args.storedimages:
+        operate_ptz(args)
+    else:
+        if coll_dir.exists():
             # remove the directory and its contents
             # this ensure only images from persistence are used
-            shutil.rmtree(dest)
-        os.mkdir(dest, mode=0o777)
-
-        src_files = os.listdir(src)
-        for file_name in src_files:
-            full_file_name = os.path.join(src, file_name)
-            if os.path.isfile(full_file_name):
-                shutil.copy(full_file_name, dest)
-    else:
-        operate_ptz(args)
+            shutil.rmtree(coll_dir)
+        coll_dir.mkdir(mode=0o777)
+        for fp in persis_dir.glob("*.jpg"):
+            try:
+                shutil.copy(fp, coll_dir)
+            except OSError as e:
+                print("Error: %s : %s" % (fp, e.strerror))
 
 
 def pretraining_wrapper(arguments):
