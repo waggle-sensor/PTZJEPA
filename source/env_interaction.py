@@ -14,6 +14,8 @@ import torch
 import torch.nn.functional as F
 #import torch.nn.SmoothL1Loss as S1L
 
+from PIL import Image 
+
 from waggle.plugin import Plugin
 
 from torch.utils.data import DataLoader
@@ -67,8 +69,13 @@ def control_ptz(args, params, logger=None, resume_preempt=False):
         torch.cuda.set_device(device)
 
     # -- DATA
-    crop_size = params['data']['crop_size']
+    use_gaussian_blur = params['data']['use_gaussian_blur']
+    use_horizontal_flip = params['data']['use_horizontal_flip']
+    use_color_distortion = params['data']['use_color_distortion']
+    color_jitter = params['data']['color_jitter_strength']
     # --
+    crop_size = params['data']['crop_size']
+    crop_scale = params['data']['crop_scale']
 
     # -- MASK
     patch_size = params['mask']['patch_size']  # patch-size for model training
@@ -172,6 +179,15 @@ def control_ptz(args, params, logger=None, resume_preempt=False):
         pred_emb_dim=pred_emb_dim,
         model_name=model_name)
 
+    # -- make data transforms
+    transform = make_transforms(
+        crop_size=crop_size,
+        crop_scale=crop_scale,
+        gaussian_blur=use_gaussian_blur,
+        horizontal_flip=use_horizontal_flip,
+        color_distortion=use_color_distortion,
+        color_jitter=color_jitter)
+
     for p in target_encoder.parameters():
         p.requires_grad = False
 
@@ -225,7 +241,7 @@ def control_ptz(args, params, logger=None, resume_preempt=False):
 
 
 
-    operate_ptz(args)
+    operate_ptz(args, target_encoder, transform, target_predictor, device)
 
 
 
@@ -342,8 +358,32 @@ def grab_image(camera, args):
 
 
 
+def get_last_image(directory):
+    last_timestamp=0
+    last_imagepath=' '
+    last_position=[0.0, 0.0, 0.0]
+    for filename in os.listdir(directory):
+        f = os.path.join(directory, filename)
+        # checking if it is a file
+        if os.path.isfile(f):
+            position=f.split('_')[0].split('/')[-1].split(',')
+            date=f.split('_')[-2].split('-')
+            time=f.split('_')[-1].split('.')[0].split(':')
+            year, month, day = int(date[0]), int(date[1]), int(date[2])
+            hour, minute, second = int(time[0]), int(time[1]), int(time[2])
+            pan, tilt, zoom = float(position[0]), float(position[1]), float(position[2])
+            dt = datetime.datetime(year, month, day, hour, minute, second)
+            if last_timestamp < dt.timestamp():
+                last_timestamp = dt.timestamp()
+                last_imagepath = f
+                last_position = [pan, tilt, zoom]
 
-def operate_ptz(args):
+    return Image.open(last_imagepath), torch.tensor(last_position)
+
+
+
+
+def operate_ptz(args, target_encoder, transform, target_predictor, device):
     if args.camerabrand==0:
         print('Importing Hanwha')
         from source import sunapi_control as sunapi_control
@@ -406,17 +446,29 @@ def operate_ptz(args):
         set_random_position(camera=Camera1, args=args)
         grab_image(camera=Camera1, args=args)
 
-        for (pan, tilt, zoom) in zip(PAN, TILT, ZOOM):
-            try:
-                if args.camerabrand==0:
-                    Camera1.relative_control(pan=pan, tilt=tilt, zoom=zoom)
-                elif args.camerabrand==1:
-                    Camera1.relative_move(rpan=pan, rtilt=tilt, rzoom=zoom)
-            except:
-                with Plugin() as plugin:
-                    plugin.publish('cannot.set.camera.relative.position', str(datetime.datetime.now()))
+        for command in range(number_of_commands):
+            image, position = get_last_image('./imgs')
+            image = transform(image)
+            image = image.unsqueeze(0)
+            position_batch = position.unsqueeze(0).to(device)
+            state_batch = target_encoder(image.to(device))
+            with torch.no_grad():
+                next_state_values = target_predictor(state_batch, position_batch).max(1).values
 
+
+            set_random_position(camera=Camera1, args=args) ## I have to simply replace it with the decisions taken by the agent
             grab_image(camera=Camera1, args=args)
+        #for (pan, tilt, zoom) in zip(PAN, TILT, ZOOM):
+            #try:
+                #if args.camerabrand==0:
+                    #Camera1.relative_control(pan=pan, tilt=tilt, zoom=zoom)
+                #elif args.camerabrand==1:
+                    #Camera1.relative_move(rpan=pan, rtilt=tilt, rzoom=zoom)
+            #except:
+                #with Plugin() as plugin:
+                    #plugin.publish('cannot.set.camera.relative.position', str(datetime.datetime.now()))
+
+            #grab_image(camera=Camera1, args=args)
 
         #publish_images()
         collect_images(args.keepimages)
