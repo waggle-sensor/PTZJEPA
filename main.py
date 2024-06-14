@@ -126,8 +126,9 @@ def prepare_images():
         try:
             with Image.open(fp) as image:
                 image.verify()
+                image.save(fp) # to fix corrupted images
             labels.append(fp.stem)
-        except OSError as e:
+        except (OSError, IOError, SyntaxError) as e:
             fp.unlink()
             print("Error: %s : %s" % (fp, e.strerror))
     df = pd.DataFrame(labels)
