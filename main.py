@@ -112,7 +112,8 @@ def collect_images(keepimages):
         dest.mkdir(exist_ok=True, mode=0o777)
         for fp in coll_dir.glob("*.jpg"):
             try:
-                shutil.copy(fp, dest)
+                dest_fp = shutil.copy(fp, dest)
+                os.chmod(dest_fp, 0o666) # RW for all
             except OSError as e:
                 print("Error: %s : %s" % (fp, e.strerror))
 
