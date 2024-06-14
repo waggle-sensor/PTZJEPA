@@ -125,8 +125,10 @@ def prepare_images():
     labels = []
     for fp in coll_dir.glob("*.jpg"):
         try:
-            image = Image.open(fp).load()
+            image = Image.open(fp)
             image.verify()
+            # need to reopen to save the image again
+            image = Image.open(fp)
             image.save(fp) # to fix corrupted images
             labels.append(fp.stem)
         except (OSError, IOError, SyntaxError) as e:
