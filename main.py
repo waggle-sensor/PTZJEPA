@@ -124,9 +124,9 @@ def prepare_images():
     labels = []
     for fp in coll_dir.glob("*.jpg"):
         try:
-            with Image.open(fp) as image:
-                image.verify()
-                image.save(fp) # to fix corrupted images
+            image = Image.open(fp).load()
+            image.verify()
+            image.save(fp) # to fix corrupted images
             labels.append(fp.stem)
         except (OSError, IOError, SyntaxError) as e:
             fp.unlink()
