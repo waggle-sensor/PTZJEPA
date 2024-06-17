@@ -398,6 +398,6 @@ class CameraControl:
             lap = cv2.Laplacian(image, cv2.CV_64F).var()
             print('lap is ', lap)
             if time.time() - start_time > TIME_TOLERANCE:
-                        break
+                break
 
 
