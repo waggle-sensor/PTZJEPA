@@ -133,6 +133,31 @@ def change_ownership(folder):
             os.chmod(os.path.join(subdir, File), 0o666)
 
 
+def detect_plateau(loss_values, patience=5, threshold=1e-4):
+    """
+    Detects plateauing behavior in a loss curve.
+
+    Parameters:
+        loss_values (list or numpy array): List or array containing the loss values over epochs.
+        patience (int): Number of epochs with no improvement to wait before stopping.
+        threshold (float): Threshold for the change in loss to be considered as plateauing.
+
+    Returns:
+        plateaued (bool): True if the loss has plateaued, False otherwise.
+    """
+    if len(loss_values) < patience + 1:
+        return False  # Not enough data to detect plateauing
+
+    recent_losses = loss_values[-patience:]
+    mean_loss = np.mean(recent_losses)
+    current_loss = loss_values[-1]
+
+    if np.abs(current_loss - mean_loss) < threshold:
+        return True  # Loss has plateaued
+    else:
+        return False  # Loss has not plateaued
+
+
 def train(args, logger=None, resume_preempt=False):
     # ----------------------------------------------------------------------- #
     #  PASSED IN PARAMS FROM CONFIG FILE
@@ -336,30 +361,6 @@ def train(args, logger=None, resume_preempt=False):
     def loss_fn(z, h):
         loss = F.smooth_l1_loss(z, h)
         return loss
-
-    def detect_plateau(loss_values, patience=5, threshold=1e-4):
-        """
-        Detects plateauing behavior in a loss curve.
-
-        Parameters:
-            loss_values (list or numpy array): List or array containing the loss values over epochs.
-            patience (int): Number of epochs with no improvement to wait before stopping.
-            threshold (float): Threshold for the change in loss to be considered as plateauing.
-
-        Returns:
-            plateaued (bool): True if the loss has plateaued, False otherwise.
-        """
-        if len(loss_values) < patience + 1:
-            return False  # Not enough data to detect plateauing
-
-        recent_losses = loss_values[-patience:]
-        mean_loss = np.mean(recent_losses)
-        current_loss = loss_values[-1]
-
-        if np.abs(current_loss - mean_loss) < threshold:
-            return True  # Loss has plateaued
-        else:
-            return False  # Loss has not plateaued
 
 
     def train_step(inputs):
@@ -697,8 +698,6 @@ def world_model(args, logger=None, resume_preempt=False):
             next(momentum_scheduler)
 
 
-
-
     def save_checkpoint(epoch):
         save_dict = {
             'encoder': encoder.state_dict(),
@@ -714,79 +713,6 @@ def world_model(args, logger=None, resume_preempt=False):
         torch.save(save_dict, latest_path)
         if (epoch + 1) % checkpoint_freq == 0:
             torch.save(save_dict, save_path.format(epoch=f'{epoch + 1}'))
-
-
-
-    def arrange_inputs(images, positions):
-        context_imgs = []
-        target_imgs = []
-        context_poss = []
-        target_poss = []
-        for context_idx in range(positions.shape[0]):
-            for target_idx in range(positions.shape[0]):
-                context_imgs.append(images[context_idx].unsqueeze(0))
-                context_poss.append(positions[context_idx].unsqueeze(0))
-                target_imgs.append(images[target_idx].unsqueeze(0))
-                target_poss.append(positions[target_idx].unsqueeze(0))
-
-        auxiliary = torch.Tensor(len(context_imgs), context_imgs[0].shape[1],
-                                                    context_imgs[0].shape[2],
-                                                    context_imgs[0].shape[3]).to(device, non_blocking=True)
-        torch.cat(context_imgs, out=auxiliary)
-        auxiliary = auxiliary.squeeze(1)
-        context_imgs = auxiliary.detach().clone()
-
-        auxiliary = torch.Tensor(len(context_poss), context_poss[0].shape[1]).to(device, non_blocking=True)
-        torch.cat(context_poss, out=auxiliary)
-        auxiliary = auxiliary.squeeze(1)
-        context_poss = auxiliary.detach().clone()
-
-
-        auxiliary = torch.Tensor(len(target_imgs), target_imgs[0].shape[1],
-                                                   target_imgs[0].shape[2],
-                                                   target_imgs[0].shape[3]).to(device, non_blocking=True)
-        torch.cat(target_imgs, out=auxiliary)
-        auxiliary = auxiliary.squeeze(1)
-        target_imgs = auxiliary.detach().clone()
-
-        auxiliary = torch.Tensor(len(target_poss), target_poss[0].shape[1]).to(device, non_blocking=True)
-        torch.cat(target_poss, out=auxiliary)
-        auxiliary = auxiliary.squeeze(1)
-        target_poss = auxiliary.detach().clone()
-
-        return context_imgs.to(device), context_poss.to(device), target_imgs.to(device), target_poss.to(device)
- 
-
-
-
-    def detect_plateau(loss_values, patience=5, threshold=1e-4):
-        """
-        Detects plateauing behavior in a loss curve.
-
-        Parameters:
-            loss_values (list or numpy array): List or array containing the loss values over epochs.
-            patience (int): Number of epochs with no improvement to wait before stopping.
-            threshold (float): Threshold for the change in loss to be considered as plateauing.
-
-        Returns:
-            plateaued (bool): True if the loss has plateaued, False otherwise.
-        """
-        if len(loss_values) < patience + 1:
-            return False  # Not enough data to detect plateauing
-
-        recent_losses = loss_values[-patience:]
-        mean_loss = np.mean(recent_losses)
-        current_loss = loss_values[-1]
-
-        if np.abs(current_loss - mean_loss) < threshold:
-            return True  # Loss has plateaued
-        else:
-            return False  # Loss has not plateaued
-
-
-
-
-
 
 
     def train_step(inputs):
@@ -835,9 +761,6 @@ def world_model(args, logger=None, resume_preempt=False):
                 #param_k.data.mul_(m).add_((1.-m) * param_q.detach().data)
 
         return (float(loss), _new_lr, _new_wd, grad_stats)
-
-
-
 
 
     def acumulate_train_step(inputs):
