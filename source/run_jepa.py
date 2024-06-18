@@ -858,7 +858,7 @@ def world_model(args, logger=None, resume_preempt=False):
             imgs = imgs.to(device, non_blocking=True)
             poss = poss.to(device, non_blocking=True)
             
-            context_imgs, context_poss, target_imgs, target_poss = arrange_inputs(imgs, poss)
+            context_imgs, context_poss, target_imgs, target_poss = arrange_inputs(imgs, poss, device)
 
             if itr%int(global_batch_size/batch_size)==0:
                 (loss, _new_lr, _new_wd, grad_stats), etime = gpu_timer(train_step, arguments=[context_imgs, context_poss, target_imgs, target_poss])
