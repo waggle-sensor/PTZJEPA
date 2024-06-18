@@ -376,23 +376,39 @@ class CameraControl:
         resp = self._camera_command({'info': '1'})
         return resp.text
 
-    def snap_shot(self, directory: str = None):
+    def snap_shot(self, filename: str = None):
         """
         Captures and image from the PTZ camera.
+        Success Image is saved as the filename.
 
-        Returns:
-            Success Image is saved in directory.
+        Args:
+            filename: name of the file to save the image.
 
         """
         start_time = time.time()
         lap = 0.0
+
+        # URL to capture image
+        url = f"http://{self.__cam_ip}/axis-cgi/jpg/image.cgi"
         while lap < FOCUS_THRESHOLD:
-            url = 'http://' + self.__cam_user + ':' + self.__cam_password + self.__cam_ip + '/jpg/1/image.jpg'
-            os.system("wget " + url + ' -O ' + directory.replace(' ', '_'))
+            # Sometimes it need '@', sometimes don't
+            # need to check the path
+            # os.system("wget " + url + ' -O ' + directory.replace(' ', '_'))
+            filename = filename.replace(' ', '_')
+            res = requests.get(url,
+                               auth=HTTPDigestAuth(self.__cam_user,
+                                                   self.__cam_password),
+                               timeout=5)
+            if res.status_code == 200:
+                with open(filename, 'wb') as f:
+                    f.write(res.content)
+            else:
+                logging.error('Failed to capture image, will try again in 1 second')
+                logging.error('Status code: %s', res.status_code)
             time.sleep(1)
 
             # Load the image
-            image = cv2.imread(directory.replace(' ', '_'))
+            image = cv2.imread(filename)
             # compute the Laplacian of the image and then return the focus
             # measure, which is simply the variance of the Laplacian
             lap = cv2.Laplacian(image, cv2.CV_64F).var()
