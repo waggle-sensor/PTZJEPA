@@ -10,7 +10,10 @@ import cv2
 from requests.auth import HTTPDigestAuth
 from bs4 import BeautifulSoup
 
-logging.basicConfig(filename='vapix.log', filemode='w', level=logging.DEBUG)
+logging.basicConfig(filename='vapix.log',
+                    filemode='w',
+                    level=logging.DEBUG)
+logging.getLogger("AXIS_camera")
 logging.info('Started')
 
 # pylint: disable=R0904

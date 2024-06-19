@@ -1241,7 +1241,7 @@ def dreamer(args, logger=None, resume_preempt=False):
 
 def run(fname, mode):
     logging.basicConfig()
-    logger = logging.getLogger()
+    logger = logging.getLogger("run_jepa")
     logger.setLevel(logging.INFO)
 
     logger.info(f'called-params {fname}')
