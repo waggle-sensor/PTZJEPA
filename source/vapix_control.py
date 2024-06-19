@@ -395,6 +395,8 @@ class CameraControl:
             # need to check the path
             # os.system("wget " + url + ' -O ' + directory.replace(' ', '_'))
             filename = filename.replace(' ', '_')
+            # check this out for 401 error reason
+            # https://stackoverflow.com/questions/2384230/what-is-digest-authentication
             res = requests.get(url,
                                auth=HTTPDigestAuth(self.__cam_user,
                                                    self.__cam_password),

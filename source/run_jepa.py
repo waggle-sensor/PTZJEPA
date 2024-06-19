@@ -722,9 +722,11 @@ def world_model(args, logger=None, resume_preempt=False):
 
         # Step 1. Auxiliary Forward
         h = forward_target(inputs[2], target_encoder)
+        # ! for pytorch<2, Needs all gradients for backpropagation 
         with torch.no_grad():
             z, r = forward_context(inputs[0], inputs[1], inputs[3],
                                    encoder, predictor, camera_brand)
+        z = z.detach()
         auxiliary_loss = auxiliary_loss_fn(z, h)
 
         # Step 2. Auxiliary Backward
@@ -736,11 +738,15 @@ def world_model(args, logger=None, resume_preempt=False):
         grads = torch.cat(grads)
         g = grads.abs().sum()
         target_encoder.zero_grad()
+        # do not update the gradient for context branch yet
+        # predictor.zero_grad()
+        # encoder.zero_grad()
 
         # Step 3. Forward
         with torch.no_grad():
             # EMA update for target encoder
             h = forward_target(inputs[2], target_encoder)
+        h = h.detach()
         # Need to update the gradient
         z, r = forward_context(inputs[0], inputs[1], inputs[3],
                                encoder, predictor, camera_brand)
@@ -748,6 +754,9 @@ def world_model(args, logger=None, resume_preempt=False):
 
         # Step 4. Backward & step
         loss.backward()
+        # do not update the gradient for target encoder
+        # update is done via EMA
+        # target_encoder.zero_grad()
         optimizer.step()
         grad_stats = grad_logger(encoder.named_parameters())
         optimizer.zero_grad()
