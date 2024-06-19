@@ -161,12 +161,12 @@ def prepare_dreams():
 def operate_ptz(args):
     if args.camerabrand == 0:
         print("Importing Hanwha")
-        from source import sunapi_control as sunapi_control
+        from source import sunapi_control as camera_control
     elif args.camerabrand == 1:
         print("Importing Axis")
-        from source import vapix_control as sunapi_control
+        from source import vapix_control as camera_control
 
-        # from source import onvif_control as sunapi_control
+        # from source import onvif_control as camera_control
     else:
         raise ValueError("Not known camera brand number: ", args.camerabrand)
 
@@ -174,7 +174,7 @@ def operate_ptz(args):
     number_of_commands = args.movements
 
     try:
-        Camera1 = sunapi_control.CameraControl(
+        Camera1 = camera_control.CameraControl(
             args.cameraip, args.username, args.password
         )
     except:
