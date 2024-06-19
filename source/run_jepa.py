@@ -59,9 +59,8 @@ def change_allocentric_position(position1, position2, camera_brand):
     position2[:,1] -= tilt
 
 def forward_target(images, target_encoder):
-    with torch.no_grad():
-        h = target_encoder(images)
-        h = F.layer_norm(h, (h.size(-1),))  # normalize over feature-dim
+    h = target_encoder(images)
+    h = F.layer_norm(h, (h.size(-1),))  # normalize over feature-dim
     return h
 
 def forward_context(images, position1, position2, encoder, predictor,
@@ -158,7 +157,7 @@ def detect_plateau(loss_values, patience=5, threshold=1e-4):
         return False  # Loss has not plateaued
 
 
-def train(args, logger=None, resume_preempt=False):
+def ijepa_train(args, logger=None, resume_preempt=False):
     # ----------------------------------------------------------------------- #
     #  PASSED IN PARAMS FROM CONFIG FILE
     # ----------------------------------------------------------------------- #
@@ -369,7 +368,8 @@ def train(args, logger=None, resume_preempt=False):
         # --
 
         # Step 1. Forward
-        h = forward_target(inputs[2], target_encoder)
+        with torch.no_grad():
+            h = forward_target(inputs[2], target_encoder)
         z = forward_context(inputs[0], inputs[1], inputs[3], encoder, predictor, camera_brand)
         loss = loss_fn(z, h)
         # Divide loss by accumulation steps
@@ -403,7 +403,8 @@ def train(args, logger=None, resume_preempt=False):
         # --
 
         # Step 1. Forward
-        h = forward_target(inputs[2], target_encoder)
+        with torch.no_grad():
+            h = forward_target(inputs[2], target_encoder)
         z = forward_context(inputs[0], inputs[1], inputs[3], encoder, predictor, camera_brand)
         loss = loss_fn(z, h)
         # Divide loss by accumulation steps
@@ -726,7 +727,6 @@ def world_model(args, logger=None, resume_preempt=False):
         with torch.no_grad():
             z, r = forward_context(inputs[0], inputs[1], inputs[3],
                                    encoder, predictor, camera_brand)
-        z = z.detach()
         auxiliary_loss = auxiliary_loss_fn(z, h)
 
         # Step 2. Auxiliary Backward
@@ -746,7 +746,6 @@ def world_model(args, logger=None, resume_preempt=False):
         with torch.no_grad():
             # EMA update for target encoder
             h = forward_target(inputs[2], target_encoder)
-        h = h.detach()
         # Need to update the gradient
         z, r = forward_context(inputs[0], inputs[1], inputs[3],
                                encoder, predictor, camera_brand)
@@ -1294,7 +1293,7 @@ def run(fname, mode):
         pp.pprint(params)
 
     if mode=='train':
-        return train(params, logger=logger)
+        return ijepa_train(params, logger=logger)
     if mode=='world_model':
         return world_model(params, logger=logger)
     if mode=='dreamer':
