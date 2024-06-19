@@ -740,9 +740,8 @@ def world_model(args, logger=None, resume_preempt=False):
         target_encoder.zero_grad()
         # do not update the gradient for context branch for the auxiliary
         # gradient calculation pass
-        predictor.zero_grad()
-        encoder.zero_grad()
-        # ? Is it equivalent to optimizer.zero_grad()?
+        # predictor.zero_grad()
+        # encoder.zero_grad()
 
         # Step 3. Forward
         with torch.no_grad():
@@ -757,7 +756,7 @@ def world_model(args, logger=None, resume_preempt=False):
         loss.backward()
         # do not update the gradient for target encoder
         # update is done via EMA
-        target_encoder.zero_grad()
+        # target_encoder.zero_grad()
 
         optimizer.step()
         grad_stats = grad_logger(encoder.named_parameters())
@@ -1236,45 +1235,6 @@ def dreamer(args, logger=None, resume_preempt=False):
 
 
     return True
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
