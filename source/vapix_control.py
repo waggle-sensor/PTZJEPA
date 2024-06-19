@@ -13,8 +13,8 @@ from bs4 import BeautifulSoup
 logging.basicConfig(filename='vapix.log',
                     filemode='w',
                     level=logging.DEBUG)
-logging.getLogger("AXIS_camera")
-logging.info('Started')
+logger = logging.getLogger("AXIS_camera")
+logger.info('Started')
 
 # pylint: disable=R0904
 
@@ -65,7 +65,7 @@ class CameraControl:
             Returns the response from the device to the command sent
 
         """
-        logging.info('camera_command(%s)', payload)
+        logger.info('camera_command(%s)', payload)
 
         base_q_args = {
             'camera': 1,
@@ -82,7 +82,7 @@ class CameraControl:
 
         if (resp.status_code != 200) and (resp.status_code != 204):
             soup = BeautifulSoup(resp.text, features="lxml")
-            logging.error('%s', soup.get_text())
+            logger.error('%s', soup.get_text())
             if resp.status_code == 401:
                 sys.exit(1)
 
@@ -408,8 +408,8 @@ class CameraControl:
                 with open(filename, 'wb') as f:
                     f.write(res.content)
             else:
-                logging.error('Failed to capture image, will try again in 1 second')
-                logging.error('Status code: %s', res.status_code)
+                logger.error('Failed to capture image, will try again in 1 second')
+                logger.error('Status code: %s', res.status_code)
             time.sleep(1)
 
             # Load the image
