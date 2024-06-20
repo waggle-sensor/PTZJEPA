@@ -24,34 +24,34 @@ logger = logging.getLogger("gen_embed")
 def parse_args():
     parser = ArgumentParser()
     parser.add_argument(
-        "--config_fpath",
         "-conf",
+        "--config_fpath",
         type=str,
         default="configs/ptz.yaml",
         help="path to the config file",
     )
     parser.add_argument(
-        "--checkpoint_fpath",
         "-ckpt",
+        "--checkpoint_fpath",
         type=str,
         default="checkpoints/ptz.pth",
         help="path to the checkpoint file",
     )
     parser.add_argument(
-        "--img_dir",
         "-img",
+        "--img_dir",
         type=str,
         help="path to the directory containing images",
     )
     parser.add_argument(
-        "--output_dir",
         "-out",
+        "--output_dir",
         type=str,
         help="path to the output directory",
     )
     parser.add_argument(
-        "--device",
         "-d",
+        "--device",
         type=str,
         default=None,
         help="device to run the model on",
