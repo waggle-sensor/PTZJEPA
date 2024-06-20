@@ -18,7 +18,7 @@ from transforms import make_transforms
 from datasets.ptz_dataset import PTZImageDataset
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
-logger = logging.getLogger()
+logger = logging.getLogger("gen_embed")
 
 
 def parse_args():
@@ -52,6 +52,42 @@ def parse_args():
         help="device to run the model on",
     )
     return parser.parse_args()
+
+
+def check_file_integrity(dir_path, remove_corrupt=False):
+    """
+    Check the integrity of image files in a directory and optionally remove corrupt files.
+
+    Args:
+        dir_path (str): The path to the directory containing the image files.
+        remove_corrupt (bool, optional): Whether to remove corrupt files. Defaults to False.
+
+    Raises:
+        FileNotFoundError: If the specified directory does not exist.
+        NotADirectoryError: If the specified path is not a directory.
+
+    Returns:
+        None
+    """
+    from PIL import Image
+    
+    dir_path = Path(dir_path)
+    if not dir_path.exists():
+        raise FileNotFoundError(f"{dir_path} does not exist")
+    if not dir_path.is_dir():
+        raise NotADirectoryError(f"{dir_path} is not a directory")
+    for fp in dir_path.glob("*.jpg"):
+        try:
+            image = Image.open(fp)
+            image.verify()
+            # need to reopen to save the image again
+            image = Image.open(fp)
+            image.save(fp) # to fix corrupted images
+        except (OSError, IOError) as e:
+            logger.error("Got error: %s", e)
+            logger.error("Corrupted image: %s", fp)
+            if remove_corrupt:
+                fp.unlink()
 
 
 def generate_embedding(
@@ -92,9 +128,9 @@ def generate_embedding(
     pretrained_dict = checkpoint["encoder"]
     msg = encoder.load_state_dict(pretrained_dict)
     logger.info("loaded context encoder from epoch %s with msg: %s", epoch, msg)
-    pretrained_dict = checkpoint["predictor"]
-    msg = predictor.load_state_dict(pretrained_dict)
-    logger.info("loaded predictor from epoch %s with msg: %s", epoch, msg)
+    # pretrained_dict = checkpoint["predictor"]
+    # msg = predictor.load_state_dict(pretrained_dict)
+    # logger.info("loaded predictor from epoch %s with msg: %s", epoch, msg)
     pretrained_dict = checkpoint["target_encoder"]
     msg = target_encoder.load_state_dict(pretrained_dict)
     logger.info("loaded target encoder from epoch %s with msg: %s", epoch, msg)
@@ -146,6 +182,7 @@ def generate_embedding(
 
 if __name__ == "__main__":
     args = parse_args()
+    check_file_integrity(args.img_dir, remove_corrupt=True)
     generate_embedding(
         args.config_fpath,
         args.checkpoint_fpath,
