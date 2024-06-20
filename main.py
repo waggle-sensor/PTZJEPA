@@ -98,24 +98,48 @@ def publish_images():
         plugin.upload_file(ct + "_images.tar")
 
 
+def verify_image(fp, try_fix=True):
+    """
+    Verifies the integrity of an image file.
+
+    Args:
+        fp (str): The file path of the image file to be verified.
+        try_fix (bool): Whether to attempt to fix the image file if it is corrupted. Default is True.
+
+    Returns:
+        bool: True if the image file is valid or successfully fixed, False otherwise.
+    """
+    try:
+        image = Image.open(fp)
+        image.verify()
+        if try_fix:
+            # to fix corrupted images
+            image = Image.open(fp)
+            image.save(fp)
+        return True
+    except (OSError, IOError, SyntaxError) as e:
+        print("Error: %s : %s" % (fp, e.strerror))
+        return False
+
+
 def collect_images(keepimages):
     coll_dir.mkdir(exist_ok=True, mode=0o777)
     # files = glob.glob("/imgs/*.jpg", recursive=True)
     for fp in tmp_dir.glob("*.jpg"):
-        try:
-            fp.rename(coll_dir / fp.name)
-        except OSError as e:
-            print("Error: %s : %s" % (fp, e.strerror))
-
-    if keepimages:
-        dest = persis_dir / "collected_imgs"
-        dest.mkdir(exist_ok=True, mode=0o777)
-        for fp in coll_dir.glob("*.jpg"):
+        if verify_image(fp):
             try:
-                dest_fp = shutil.copy(fp, dest)
-                os.chmod(dest_fp, 0o666) # RW for all
+                shutil.copy(fp, coll_dir)
             except OSError as e:
                 print("Error: %s : %s" % (fp, e.strerror))
+        if keepimages:
+            dest = persis_dir / "collected_imgs"
+            dest.mkdir(exist_ok=True, mode=0o777)
+            for fp in coll_dir.glob("*.jpg"):
+                try:
+                    dest_fp = shutil.copy(fp, dest)
+                    os.chmod(dest_fp, 0o666) # RW for all
+                except OSError as e:
+                    print("Error: %s : %s" % (fp, e.strerror))
 
 
 def prepare_images():
@@ -124,16 +148,10 @@ def prepare_images():
     """
     labels = []
     for fp in coll_dir.glob("*.jpg"):
-        try:
-            image = Image.open(fp)
-            image.verify()
-            # need to reopen to save the image again
-            image = Image.open(fp)
-            image.save(fp) # to fix corrupted images
+        if verify_image(fp):
             labels.append(fp.stem)
-        except (OSError, IOError, SyntaxError) as e:
+        else:
             fp.unlink()
-            print("Error: %s : %s" % (fp, e.strerror))
     df = pd.DataFrame(labels)
     df.to_csv("./labels.txt", header=None, index=False)
     print("Number of labels: ", df.size)
