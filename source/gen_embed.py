@@ -25,28 +25,33 @@ def parse_args():
     parser = ArgumentParser()
     parser.add_argument(
         "--config_fpath",
+        "-conf",
         type=str,
         default="configs/ptz.yaml",
         help="path to the config file",
     )
     parser.add_argument(
         "--checkpoint_fpath",
+        "-ckpt",
         type=str,
         default="checkpoints/ptz.pth",
         help="path to the checkpoint file",
     )
     parser.add_argument(
         "--img_dir",
+        "-img",
         type=str,
         help="path to the directory containing images",
     )
     parser.add_argument(
         "--output_dir",
+        "-out",
         type=str,
         help="path to the output directory",
     )
     parser.add_argument(
         "--device",
+        "-d",
         type=str,
         default=None,
         help="device to run the model on",
