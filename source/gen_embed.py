@@ -56,6 +56,12 @@ def parse_args():
         default=None,
         help="device to run the model on",
     )
+    parser.add_argument(
+        "-r",
+        '--remove_corrupt',
+        action='store_true',
+        help='Remove corrupt images from the directory'
+    )
     return parser.parse_args()
 
 
@@ -187,7 +193,7 @@ def generate_embedding(
 
 if __name__ == "__main__":
     args = parse_args()
-    check_file_integrity(args.img_dir, remove_corrupt=True)
+    check_file_integrity(args.img_dir, remove_corrupt=args.remove_corrupt)
     generate_embedding(
         args.config_fpath,
         args.checkpoint_fpath,
