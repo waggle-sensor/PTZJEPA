@@ -64,12 +64,13 @@ def forward_target(images, target_encoder):
     return h
 
 def forward_context(images, position1, position2, encoder, predictor,
-                    camera_brand, return_all_embeddings=False):
-    change_allocentric_position(position1, position2, camera_brand)
+                    camera_brand, return_rewards=False, change_position=True):
+    if change_position:
+        change_allocentric_position(position1, position2, camera_brand)
     encoder_z = encoder(images)
-    pred_z = predictor(encoder_z, position1, position2)
-    if return_all_embeddings:
-        return pred_z, encoder_z
+    pred_z, pred_r = predictor(encoder_z, position1, position2)
+    if return_rewards:
+        return pred_z, pred_r
     return pred_z
 
 def get_position_from_label(labels: Iterable[str]):
