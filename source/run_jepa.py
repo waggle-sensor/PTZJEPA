@@ -73,17 +73,6 @@ def forward_context(images, position1, position2, encoder, predictor,
         return pred_z, pred_r
     return pred_z
 
-def get_position_from_label(labels: Iterable[str]):
-    positions = []
-    if not isinstance(labels, Iterable):
-        # coerce to list
-        labels = [labels]
-    for label in labels:
-        poss = label.split('_')[0].split(',')
-        positions.append([float(poss[0]), float(poss[1]), float(poss[2])])
-    return torch.tensor(positions)
-
-
 def arrange_inputs(images, positions, device):
     context_imgs = []
     target_imgs = []
@@ -464,8 +453,8 @@ def ijepa_train(args, logger=None, resume_preempt=False):
         loss_meter = AverageMeter()
         time_meter = AverageMeter()
 
-        for itr, (imgs, labls) in enumerate(dataloader):
-            poss = get_position_from_label(labls)
+        for itr, (imgs, poss) in enumerate(dataloader):
+            # poss = get_position_from_label(labls)
             imgs = imgs.to(device, non_blocking=True)
             poss = poss.to(device, non_blocking=True)
             
@@ -864,8 +853,8 @@ def world_model(args, logger=None, resume_preempt=False):
         loss_meter = AverageMeter()
         time_meter = AverageMeter()
 
-        for itr, (imgs, labls) in enumerate(dataloader):
-            poss = get_position_from_label(labls)
+        for itr, (imgs, poss) in enumerate(dataloader):
+            # poss = get_position_from_label(labls)
             imgs = imgs.to(device, non_blocking=True)
             poss = poss.to(device, non_blocking=True)
             
@@ -1236,8 +1225,8 @@ def dreamer(args, logger=None, resume_preempt=False):
         position[:,1] = position[:,1] - tilt
 
     # -- DREAM LOOP
-    for itr, (imgs, labls) in enumerate(dataloader):
-        poss = get_position_from_label(labls)
+    for itr, (imgs, poss) in enumerate(dataloader):
+        # poss = get_position_from_label(labls)
         change_allocentric_position(poss)
         imgs = imgs.to(device, non_blocking=True)
         poss = poss.to(device, non_blocking=True)
