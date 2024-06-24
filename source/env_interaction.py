@@ -241,33 +241,7 @@ def control_ptz(args, params, logger=None, resume_preempt=False):
 
 
 
-    operate_ptz(args, target_encoder, transform, target_predictor, device)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    operate_ptz(args, actions, target_encoder, transform, target_predictor, device)
 
 
 
@@ -340,6 +314,25 @@ def set_random_position(camera, args):
 
 
 
+def set_relative_position(camera, args, pan, tilt, zoom):
+    print('pan ', pan)
+    print('tilt ', tilt)
+    print('zoom ', zoom)
+    try:
+        if args.camerabrand==0:
+            camera.relative_control(pan=pan, tilt=tilt, zoom=zoom)
+        elif args.camerabrand==1:
+            camera.relative_move(rpan=pan, rtilt=tilt, rzoom=zoom)
+    except:
+        with Plugin() as plugin:
+            plugin.publish('cannot.set.camera.relative.position', str(datetime.datetime.now()))
+
+
+
+
+
+
+
 def grab_image(camera, args):
     if args.camerabrand==0:
         position = camera.requesting_cameras_position_information()
@@ -383,7 +376,7 @@ def get_last_image(directory):
 
 
 
-def operate_ptz(args, target_encoder, transform, target_predictor, device):
+def operate_ptz(args, actions, target_encoder, transform, target_predictor, device):
     if args.camerabrand==0:
         print('Importing Hanwha')
         from source import sunapi_control as sunapi_control
@@ -453,10 +446,30 @@ def operate_ptz(args, target_encoder, transform, target_predictor, device):
             position_batch = position.unsqueeze(0).to(device)
             state_batch = target_encoder(image.to(device))
             with torch.no_grad():
-                next_state_values = target_predictor(state_batch, position_batch).max(1).values
+                #next_state_values = target_predictor(state_batch, position_batch)
+                next_state_indices = target_predictor(state_batch, position_batch).max(1).indices.item()
+                #next_state_values = target_predictor(state_batch, position_batch).max(1).values
 
+            print('next_state_indices: ', next_state_indices)
+            next_action = actions[next_state_indices]
+            print('next_action: ', next_action)
 
-            set_random_position(camera=Camera1, args=args) ## I have to simply replace it with the decisions taken by the agent
+            pan_modulation = 2
+            tilt_modulation = 2
+            if args.camerabrand==0:
+                zoom_modulation = 1
+            elif args.camerabrand==1:
+                zoom_modulation = 100
+
+            pan=next_action[0]*pan_modulation
+            tilt=next_action[1]*tilt_modulation
+            zoom=next_action[2]*zoom_modulation
+
+            #set_random_position(camera=Camera1, args=args) ## I have to simply replace it with the decisions taken by the agent
+            set_relative_position(camera=Camera1, args=args,
+                                  pan=pan,
+                                  tilt=tilt,
+                                  zoom=zoom)
             grab_image(camera=Camera1, args=args)
         #for (pan, tilt, zoom) in zip(PAN, TILT, ZOOM):
             #try:
