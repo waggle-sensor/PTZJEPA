@@ -7,7 +7,7 @@ from pathlib import Path
 import yaml
 import numpy as np
 from argparse import ArgumentParser
-from helper import init_model
+from helper import init_model, init_world_model
 from run_jepa import (
     forward_context,
     arrange_inputs,
@@ -47,6 +47,12 @@ def parse_args():
         "--output_dir",
         type=str,
         help="path to the output directory",
+    )
+    parser.add_argument(
+        "-wm",
+        "--world_model",
+        action="store_true",
+        help="whether to use the world model",
     )
     parser.add_argument(
         "-d",
@@ -101,7 +107,7 @@ def check_file_integrity(dir_path, remove_corrupt=False):
 
 
 def generate_embedding(
-    config_fpath, checkpoint_fpath: str, img_dir: str, output_dir: str, device=None
+    config_fpath, checkpoint_fpath: str, img_dir: str, output_dir: str, world_model=False, device=None
 ):
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -124,23 +130,33 @@ def generate_embedding(
 
     # load model
     logger.info("Loading model")
-    encoder, predictor = init_model(
-        device=device,
-        patch_size=patch_size,
-        crop_size=crop_size,
-        pred_depth=pred_depth,
-        pred_emb_dim=pred_emb_dim,
-        model_name=model_name,
-    )
+    if world_model:
+        encoder, predictor = init_world_model(
+            device=device,
+            patch_size=patch_size,
+            crop_size=crop_size,
+            pred_depth=pred_depth,
+            pred_emb_dim=pred_emb_dim,
+            model_name=model_name,
+        )
+    else:
+        encoder, predictor = init_model(
+            device=device,
+            patch_size=patch_size,
+            crop_size=crop_size,
+            pred_depth=pred_depth,
+            pred_emb_dim=pred_emb_dim,
+            model_name=model_name,
+        )
     target_encoder = copy.deepcopy(encoder)
     checkpoint = torch.load(checkpoint_fpath, map_location=torch.device("cpu"))
     epoch = checkpoint["epoch"]
     pretrained_dict = checkpoint["encoder"]
     msg = encoder.load_state_dict(pretrained_dict)
     logger.info("loaded context encoder from epoch %s with msg: %s", epoch, msg)
-    # pretrained_dict = checkpoint["predictor"]
-    # msg = predictor.load_state_dict(pretrained_dict)
-    # logger.info("loaded predictor from epoch %s with msg: %s", epoch, msg)
+    pretrained_dict = checkpoint["predictor"]
+    msg = predictor.load_state_dict(pretrained_dict)
+    logger.info("loaded predictor from epoch %s with msg: %s", epoch, msg)
     pretrained_dict = checkpoint["target_encoder"]
     msg = target_encoder.load_state_dict(pretrained_dict)
     logger.info("loaded target encoder from epoch %s with msg: %s", epoch, msg)
@@ -166,23 +182,25 @@ def generate_embedding(
         pos = pos.to(device, non_blocking=True)
         # this would duplicate each image in the batch with all
         # other images in the same batch.
-        context_imgs, context_poss, target_imgs, target_poss = arrange_inputs(
-            img, pos, device
-        )
-        with torch.no_grad():
-            pred_embed, pred_reward = forward_context(
-                context_imgs,
-                context_poss,
-                target_poss,
-                encoder,
-                predictor,
-                camera_brand,
-                return_rewards=True,
+        if world_model:
+            context_imgs, context_poss, target_imgs, target_poss = arrange_inputs(
+                img, pos, device
             )
-            contx_enc_embed = encoder.forward(context_imgs)
-            tar_embed = forward_target(target_imgs, target_encoder)
-            # contx_enc_embed = encoder.forward(img)
-            # tar_embed = forward_target(img, target_encoder)
+            with torch.no_grad():
+                pred_embed, pred_reward = forward_context(
+                    context_imgs,
+                    context_poss,
+                    target_poss,
+                    encoder,
+                    predictor,
+                    camera_brand,
+                    return_rewards=True,
+                )
+                contx_enc_embed = encoder.forward(context_imgs)
+                tar_embed = forward_target(target_imgs, target_encoder)
+        else:
+            contx_enc_embed = encoder.forward(img)
+            tar_embed = forward_target(img, target_encoder)
         contx_encoder_embed.append(contx_enc_embed.cpu().numpy())
         predictor_embed.append(pred_embed.cpu().numpy())
         target_encoder_embed.append(tar_embed.cpu().numpy())
@@ -213,6 +231,7 @@ if __name__ == "__main__":
         args.checkpoint_fpath,
         args.img_dir,
         args.output_dir,
+        args.world_model,
         args.device
     )
     
