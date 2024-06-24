@@ -726,7 +726,7 @@ def world_model(args, logger=None, resume_preempt=False):
         # ! for pytorch<2, Needs all gradients for backpropagation 
         with torch.no_grad():
             z, r = forward_context(inputs[0], inputs[1], inputs[3],
-                                   encoder, predictor, camera_brand)
+                                   encoder, predictor, camera_brand, True)
         auxiliary_loss = auxiliary_loss_fn(z, h)
 
         # Step 2. Auxiliary Backward
@@ -749,7 +749,7 @@ def world_model(args, logger=None, resume_preempt=False):
             h = forward_target(inputs[2], target_encoder)
         # Need to update the gradient
         z, r = forward_context(inputs[0], inputs[1], inputs[3],
-                               encoder, predictor, camera_brand)
+                               encoder, predictor, camera_brand, True)
         loss = loss_fn(z, r, h, g)
 
         # Step 4. Backward & step
@@ -782,7 +782,7 @@ def world_model(args, logger=None, resume_preempt=False):
         h = forward_target(inputs[2], target_encoder)
         with torch.no_grad():
             z, r = forward_context(inputs[0], inputs[1], inputs[3],
-                                   encoder, predictor, camera_brand)
+                                   encoder, predictor, camera_brand, True)
         auxiliary_loss = auxiliary_loss_fn(z, h)
 
         # Step 2. Auxiliary Backward
@@ -799,7 +799,7 @@ def world_model(args, logger=None, resume_preempt=False):
         with torch.no_grad():
             h = forward_target(inputs[2], target_encoder)
         z, r = forward_context(inputs[0], inputs[1], inputs[3],
-                               encoder, predictor, camera_brand)
+                               encoder, predictor, camera_brand, True)
         loss = loss_fn(z, r, h, g)
 
         # Step 4. Backward & step
