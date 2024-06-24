@@ -13,7 +13,7 @@ import torch
 import torchvision.transforms as transforms
 
 _GLOBAL_SEED = 0
-logger = getLogger()
+logger = getLogger("data_transforms")
 
 
 def make_transforms(
