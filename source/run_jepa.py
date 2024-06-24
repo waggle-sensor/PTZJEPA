@@ -170,7 +170,7 @@ def ijepa_train(args, logger=None, resume_preempt=False):
     copy_data = args['meta']['copy_data']
     pred_depth = args['meta']['pred_depth']
     pred_emb_dim = args['meta']['pred_emb_dim']
-    camera_brand = args['meta']['camera_brand'] #TODO I have to fix it!!!!!!!!!! I have to include the arguments of main together with the arguments from the yalm file
+    camerabrand = args['meta']['camera_brand'] #TODO I have to fix it!!!!!!!!!! I have to include the arguments of main together with the arguments from the yalm file
     if not torch.cuda.is_available():
         device = torch.device('cpu')
     else:
@@ -523,7 +523,7 @@ def world_model(args, logger=None, resume_preempt=False):
     copy_data = args['meta']['copy_data']
     pred_depth = args['meta']['pred_depth']
     pred_emb_dim = args['meta']['pred_emb_dim']
-    camera_brand = args['meta']['camera_brand']
+    camerabrand = args['meta']['camera_brand']
     if not torch.cuda.is_available():
         device = torch.device('cpu')
     else:
@@ -918,7 +918,7 @@ def dreamer(args, logger=None, resume_preempt=False):
     copy_data = args['meta']['copy_data']
     pred_depth = args['meta']['pred_depth']
     pred_emb_dim = args['meta']['pred_emb_dim']
-    camera_brand = args['meta']['camera_brand']
+    camerabrand = args['meta']['camera_brand']
     if not torch.cuda.is_available():
         device = torch.device('cpu')
     else:
@@ -1200,6 +1200,18 @@ def dreamer(args, logger=None, resume_preempt=False):
             ptz_command, action = choose_random_action(actions_set)
             ptz_command = torch.tensor(ptz_command).to(device)
             next_actions.append(action)
+
+            pan_modulation = 2
+            tilt_modulation = 2
+            if camerabrand==0:
+                zoom_modulation = 1
+            elif camerabrand==1:
+                zoom_modulation = 100
+
+            ptz_command[0]=ptz_command[0]*pan_modulation
+            ptz_command[1]=ptz_command[1]*tilt_modulation
+            ptz_command[2]=ptz_command[2]*zoom_modulation
+
             next_positions[i] = position + ptz_command
 
         next_actions=torch.tensor(next_actions).to(device)
