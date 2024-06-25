@@ -2,6 +2,7 @@
 
 import time
 import datetime
+import pickle
 import os
 import glob
 import shutil
@@ -207,12 +208,12 @@ def control_ptz(args, params, logger=None, resume_preempt=False):
     print('agent_ID: ', agent_ID)
 
     # -- log/checkpointing paths
-    agent_log_file = os.path.join(folder, agent_ID, f'{tag}.csv')
-    agent_save_path = os.path.join(folder, agent_ID, f'{tag}' + '-ep{epoch}.pth.tar')
-    agent_target_latest_path = os.path.join(folder, agent_ID, f'{tag}-target_latest.pth.tar')
+    agent_log_file = os.path.join(agent_folder, agent_ID, f'{tag}.csv')
+    agent_save_path = os.path.join(agent_folder, agent_ID, f'{tag}' + '-ep{epoch}.pth.tar')
+    agent_target_latest_path = os.path.join(agent_folder, agent_ID, f'{tag}-target_latest.pth.tar')
     agent_target_load_path = None
     if load_model:
-        agent_target_load_path = os.path.join(folder, r_file) if r_file is not None else agent_target_latest_path
+        agent_target_load_path = os.path.join(agent_folder, r_file) if r_file is not None else agent_target_latest_path
 
     print('agent_log_file ', agent_log_file)
     print('agent_save_path ', agent_save_path)
@@ -255,6 +256,12 @@ def control_ptz(args, params, logger=None, resume_preempt=False):
 
 
 
+def change_ownership(folder):
+    for subdir, dirs, files in os.walk(folder):
+        os.chmod(subdir, 0o777)
+
+        for File in files:
+            os.chmod(os.path.join(subdir, File), 0o666)
 
 
 
@@ -263,6 +270,19 @@ def control_ptz(args, params, logger=None, resume_preempt=False):
 
 
 
+def collect_positions(positions):
+    directory=os.path.join('/persistence', 'collect_positions')
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+    # ct stores current time
+    ct = str(datetime.datetime.now())
+
+    afile = open(os.path.join(directory, 'positions_at_'+ct), 'wb')
+    pickle.dump(positions, afile)
+    afile.close()
+
+    change_ownership(directory)
 
 
 
@@ -329,6 +349,16 @@ def set_relative_position(camera, args, pan, tilt, zoom):
 
 
 
+
+def grab_position(camera, args):
+    if args.camerabrand==0:
+        position = camera.requesting_cameras_position_information()
+    elif args.camerabrand==1:
+        position = camera.get_ptz()
+
+    pos_str = str(position[0]) + ',' + str(position[1]) + ',' + str(position[2]) + ' '
+
+    return pos_str
 
 
 
@@ -439,6 +469,7 @@ def operate_ptz(args, actions, target_encoder, transform, target_predictor, devi
         set_random_position(camera=Camera1, args=args)
         grab_image(camera=Camera1, args=args)
 
+        positions = [grab_position(camera=Camera1, args=args)]
         for command in range(number_of_commands):
             image, position = get_last_image('./imgs')
             image = transform(image)
@@ -471,6 +502,7 @@ def operate_ptz(args, actions, target_encoder, transform, target_predictor, devi
                                   tilt=tilt,
                                   zoom=zoom)
             grab_image(camera=Camera1, args=args)
+            positions.append(grab_position(camera=Camera1, args=args))
         #for (pan, tilt, zoom) in zip(PAN, TILT, ZOOM):
             #try:
                 #if args.camerabrand==0:
@@ -487,6 +519,8 @@ def operate_ptz(args, actions, target_encoder, transform, target_predictor, devi
         collect_images(args.keepimages)
         os.rmdir('./imgs')
 
+        if args.trackpositions:
+            collect_positions(positions)
 
 
 
