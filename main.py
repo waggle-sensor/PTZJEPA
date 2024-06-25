@@ -306,12 +306,13 @@ def environment_interaction(arguments):
     print('interaction_complete: ', interaction_complete)
 
 def lifelong_learning(arguments): 
+    operate_ptz(arguments)
     while True:
-        operate_ptz(arguments)
         prepare_images()
         training_complete = run_jepa(arguments.fname, 'world_model')
         training_complete = run_jepa(arguments.fname, 'dreamer')
         training_complete = run_rl(arguments.fname, 'train_agent')
+        interaction_complete = env_inter(arguments, arguments.fname, 'navigate_env')
 
 
 
@@ -321,6 +322,8 @@ def main():
     # PTZ sampler
     parser.add_argument("-ki", "--keepimages", action="store_true", 
                         help="Keep collected images in persistent folder for later use")
+    parser.add_argument("-tp", "--trackpositions", action="store_true", 
+                        help="Track camera positions storing them in persisten folder for later analysis")
     parser.add_argument("-si", "--storedimages", action="store_true", 
                         help="Gather images from determined storage location")
     parser.add_argument("-cb", "--camerabrand",
