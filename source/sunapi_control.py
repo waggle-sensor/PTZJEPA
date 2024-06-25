@@ -12,7 +12,8 @@ from requests.auth import HTTPDigestAuth
 from bs4 import BeautifulSoup
 
 logging.basicConfig(filename='sunapi.log', filemode='w', level=logging.DEBUG)
-logging.info('Started')
+logger = logging.getLogger("HANWHA_camera")
+logger.info('Started')
 
 class CameraControl:
     """
@@ -35,7 +36,7 @@ class CameraControl:
 
         """
 
-        logging.info('camera_command(%s)', payload)
+        logger.info('camera_command(%s)', payload)
 
         url = 'http://' + self.__cam_ip + '/stw-cgi/' + value_cgi
 
@@ -44,7 +45,7 @@ class CameraControl:
 
         if (resp.status_code != 200) and (resp.status_code != 204):
             soup = BeautifulSoup(resp.text, features="lxml")
-            logging.error('%s', soup.get_text())
+            logger.error('%s', soup.get_text())
             if resp.status_code == 401:
                 sys.exit(1)
 
@@ -89,7 +90,7 @@ class CameraControl:
         resp = self._camera_command('ptzcontrol.cgi', {'msubmenu': 'stop', 'action': 'control',
                                                        'OperationType': 'All'})
 
-        print(resp.url + "\n" + str(resp.status_code) + "\n" + resp.text)
+        logger.info(resp.url + "\n" + str(resp.status_code) + "\n" + resp.text)
 
         return resp
 
@@ -115,7 +116,7 @@ class CameraControl:
                                                        'Pan': pan, 'Tilt': tilt, 'Zoom': zoom,
                                                        'ZoomPulse': zoom_pulse, 'Channel': channel})
 
-        print(resp.url + "\n" + str(resp.status_code) + "\n" + resp.text)
+        logger.info(resp.url + "\n" + str(resp.status_code) + "\n" + resp.text)
 
         current_position = np.sum(init_pos)  # sums elements in the array
 
@@ -168,7 +169,7 @@ class CameraControl:
                     i = i + 1  # add one to counter
 
                 if i == 5:  # if the current_position and final_position have been the same for five times in a row
-                    print('end of command error')
+                    logger.error('end of command error')
                     break  # break the loop
 
             time.sleep(1)
@@ -190,18 +191,18 @@ class CameraControl:
                     i = i + 1  # add one to counter
 
                 if i == 5:  # if the current_zoom_pulse and final_zoom_pulse have been the same for five times in a row
-                    print('end of command error')
+                    logger.error('end of command error')
                     break  # break the loop
 
             time.sleep(0.5)
 
-        print('Finished')
+        logger.info('Finished')
 
         end_time = time.time()
 
         elapsed_time = end_time - start_time
 
-        print("elapsed_time: " + str(elapsed_time))
+        logger.info("elapsed_time: " + str(elapsed_time))
 
 
     def relative_control(self, pan: float = None, tilt: float = None, zoom: int = None, zoom_pulse: int = None,
@@ -288,7 +289,7 @@ class CameraControl:
                                                            'Pan': pan, 'Tilt': tilt, 'Zoom': zoom,
                                                            'ZoomPulse': zoom_pulse, 'Channel': channel})
 
-        print(resp.url + "\n" + str(resp.status_code) + "\n" + resp.text)
+        logger.info(resp.url + "\n" + str(resp.status_code) + "\n" + resp.text)
 
         # If either pan, tilt, or zoom were not chosen, set their relative movement equal to
         # zero as nothing will be changed.
@@ -349,13 +350,13 @@ class CameraControl:
 
         time.sleep(1)
 
-        print('Finished')
+        logger.info('Finished')
 
         end_time = time.time()
 
         elapsed_time = end_time - start_time
 
-        print("elapsed_time: " + str(elapsed_time))
+        logger.info("elapsed_time: " + str(elapsed_time))
 
     def continuous_control(self, normalized_speed: bool = None, pan: int = None, tilt: int = None, zoom: int = None,
                            focus: str = None):
@@ -405,7 +406,7 @@ class CameraControl:
                                                 'X1': x1, 'X2': x2, 'Y1': y1, 'Y2': y2, 'TileWidth': tilewidth,
                                                 'TileHeight': tileheight})
 
-        print(resp.url + "\n" + str(resp.status_code) + "\n" + resp.text)
+        logger.info(resp.url + "\n" + str(resp.status_code) + "\n" + resp.text)
 
         if tilewidth is None:
             tilewidth = 10000
@@ -438,13 +439,13 @@ class CameraControl:
             if final_zoom_pulse == current_zoom_pulse:  # if the final_zoom_pulse and current_zoom_pulse are the same
                 i = i + 1  # add one to counter
 
-        print('Finished')
+        logger.info('Finished')
 
         end_time = time.time()
 
         elapsed_time = end_time - start_time
 
-        print("elapsed_time: " + str(elapsed_time))
+        logger.info("elapsed_time: " + str(elapsed_time))
 
     def movement_control(self, direction: str = None, movespeed: float = None):
         """
@@ -492,8 +493,8 @@ class CameraControl:
         ptz_list = (pan, tilt, zoom)
 
         if show:
-            print(resp.text)
-            print(ptz_list)
+            logger.info(resp.text)
+            logger.info(ptz_list)
 
         return ptz_list
 
@@ -528,7 +529,7 @@ class CameraControl:
         resp = self._camera_command('ptzcontrol.cgi', {'msubmenu': 'areazoom', 'action': 'control',
                                                        'Type': '1x'})
 
-        print(resp.url + "\n" + str(resp.status_code) + "\n" + resp.text)
+        logger.info(resp.url + "\n" + str(resp.status_code) + "\n" + resp.text)
 
         start_time = time.time()
 
@@ -540,13 +541,13 @@ class CameraControl:
 
         time.sleep(0.5)
 
-        print('Finished')
+        logger.info('Finished')
 
         end_time = time.time()
 
         elapsed_time = end_time - start_time
 
-        print("elapsed_time: " + str(elapsed_time))
+        logger.info("elapsed_time: " + str(elapsed_time))
 
     def aux_control(self, command: str = None):
         """
@@ -574,7 +575,7 @@ class CameraControl:
 
         attributes = self._camera_command('attributes.cgi', {})
 
-        print(attributes.url)
+        logger.info(attributes.url)
 
     def swing_control(self, channel: int = None, mode: str = None):
         """
@@ -670,7 +671,7 @@ class CameraControl:
 
         resp = self._camera_command('opensdk.cgi', {'msubmenu': 'apps', 'action': 'view'})
 
-        print(resp.url + "\n" + str(resp.status_code) + "\n" + resp.text)
+        logger.info(resp.url + "\n" + str(resp.status_code) + "\n" + resp.text)
 
         return resp
 
@@ -684,7 +685,7 @@ class CameraControl:
 
         resp = self._camera_command('video.cgi', {'msubmenu': 'snapshot', 'action': 'view'})
 
-        print(resp.url + "\n" + str(resp.status_code) + "\n")
+        logger.info(resp.url + "\n" + str(resp.status_code) + "\n")
 
         if directory is None:  # if no directory is passed
             a1 = __file__  # copy source 'sunapi_control.py' directory
@@ -694,7 +695,7 @@ class CameraControl:
                 string = string[:idx + 1]  # remove characters until '/' is reached
             # concatenate snapshots' directory with (date&time) and '.jpg' as this is where the image will be saved on the local machine
             directory = string + time.strftime('%b_%d_%Y_%H_%M_%S_') + '.jpg'
-            print(directory)
+            logger.info(directory)
         # Save image in a set directory
         if resp.status_code == 200:
             with open(directory.replace(' ', '_'), 'wb') as f:

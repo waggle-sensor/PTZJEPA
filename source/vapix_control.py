@@ -10,8 +10,11 @@ import cv2
 from requests.auth import HTTPDigestAuth
 from bs4 import BeautifulSoup
 
-logging.basicConfig(filename='vapix.log', filemode='w', level=logging.DEBUG)
-logging.info('Started')
+logging.basicConfig(filename='vapix.log',
+                    filemode='w',
+                    level=logging.DEBUG)
+logger = logging.getLogger("AXIS_camera")
+logger.info('Started')
 
 # pylint: disable=R0904
 
@@ -62,7 +65,7 @@ class CameraControl:
             Returns the response from the device to the command sent
 
         """
-        logging.info('camera_command(%s)', payload)
+        logger.info('camera_command(%s)', payload)
 
         base_q_args = {
             'camera': 1,
@@ -79,7 +82,7 @@ class CameraControl:
 
         if (resp.status_code != 200) and (resp.status_code != 204):
             soup = BeautifulSoup(resp.text, features="lxml")
-            logging.error('%s', soup.get_text())
+            logger.error('%s', soup.get_text())
             if resp.status_code == 401:
                 sys.exit(1)
 
@@ -112,13 +115,13 @@ class CameraControl:
                         break
 
 
-        print('Finished')
+        logger.info('Finished')
 
         end_time = time.time()
 
         elapsed_time = end_time - start_time
 
-        print("elapsed_time: " + str(elapsed_time))
+        logger.info("elapsed_time: %s", elapsed_time)
 
         return resp
 
@@ -168,13 +171,13 @@ class CameraControl:
                         break
 
 
-        print('Finished')
+        logger.info('Finished')
 
         end_time = time.time()
 
         elapsed_time = end_time - start_time
 
-        print("elapsed_time: " + str(elapsed_time))
+        logger.info("elapsed_time: " + str(elapsed_time))
 
         return resp
 
@@ -376,28 +379,46 @@ class CameraControl:
         resp = self._camera_command({'info': '1'})
         return resp.text
 
-    def snap_shot(self, directory: str = None):
+    def snap_shot(self, filename: str = None):
         """
         Captures and image from the PTZ camera.
+        Success Image is saved as the filename.
 
-        Returns:
-            Success Image is saved in directory.
+        Args:
+            filename: name of the file to save the image.
 
         """
         start_time = time.time()
         lap = 0.0
+
+        # URL to capture image
+        url = f"http://{self.__cam_ip}/axis-cgi/jpg/image.cgi"
         while lap < FOCUS_THRESHOLD:
-            url = 'http://' + self.__cam_user + ':' + self.__cam_password + '@' + self.__cam_ip + '/jpg/1/image.jpg'
-            os.system("wget " + url + ' -O ' + directory.replace(' ', '_'))
+            # Sometimes it need '@', sometimes don't
+            # need to check the path
+            # os.system("wget " + url + ' -O ' + directory.replace(' ', '_'))
+            filename = filename.replace(' ', '_')
+            # check this out for 401 error reason
+            # https://stackoverflow.com/questions/2384230/what-is-digest-authentication
+            res = requests.get(url,
+                               auth=HTTPDigestAuth(self.__cam_user,
+                                                   self.__cam_password),
+                               timeout=5)
+            if res.status_code == 200:
+                with open(filename, 'wb') as f:
+                    f.write(res.content)
+            else:
+                logger.error('Failed to capture image, will try again in 1 second')
+                logger.error('Status code: %s', res.status_code)
             time.sleep(1)
 
             # Load the image
-            image = cv2.imread(directory.replace(' ', '_'))
+            image = cv2.imread(filename)
             # compute the Laplacian of the image and then return the focus
             # measure, which is simply the variance of the Laplacian
             lap = cv2.Laplacian(image, cv2.CV_64F).var()
-            print('lap is ', lap)
+            logger.info('lap is %s', lap)
             if time.time() - start_time > TIME_TOLERANCE:
-                        break
+                break
 
 
