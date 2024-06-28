@@ -19,8 +19,8 @@ The following command will run the container on the host machine.
 ```bash
 sudo docker run --name train-model --rm --gpus all \
 -v /your_model_directory:/persistence -v /parent_path/PTZJEPA:/app \
-your_docker_image_tag python /app/main.py main_function_commands 2>&1 \ 
-| tee /path_to_log_file/log.out
+your_docker_image_tag python /app/main.py main_function_commands 2>&1 |
+tee /path_to_log_file/log.out
 ```
 
 The main function arguments are the same as the ones in the main.py file.
