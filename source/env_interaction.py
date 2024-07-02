@@ -538,11 +538,10 @@ def operate_ptz(args, actions, target_encoder, transform, target_predictor, devi
 
 
 def run(args, fname, mode):
-    logging.basicConfig()
-    logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
 
-    logger.info(f'called-params {fname}')
+    logger.info('called-params %s', fname)
 
     # -- load script params
     params = None
@@ -556,5 +555,4 @@ def run(args, fname, mode):
     if mode=='navigate_env':
         return control_ptz(args, params, logger=logger)
     else:
-        print(f"Unexpected mode {mode}")
-        raise
+        raise ValueError(f"Unexpected mode {mode}")

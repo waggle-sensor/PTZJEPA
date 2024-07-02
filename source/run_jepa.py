@@ -1242,11 +1242,10 @@ def dreamer(args, logger=None, resume_preempt=False):
 
 
 def run(fname, mode):
-    logging.basicConfig()
-    logger = logging.getLogger("run_jepa")
-    logger.setLevel(logging.INFO)
+    logging.basicConfig(level=logging.info)
+    logger = logging.getLogger(__name__)
 
-    logger.info(f'called-params {fname}')
+    logger.info('called-params %s', fname)
 
     # -- load script params
     params = None
