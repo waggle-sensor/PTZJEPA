@@ -576,11 +576,11 @@ def agent_model(args, logger=None, resume_preempt=False):
 
 
 def run(fname, mode):
-    logging.basicConfig()
-    logger = logging.getLogger()
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
 
-    logger.info(f'called-params {fname}')
+    logger.info('called-params %s', fname)
 
     # -- load script params
     params = None
@@ -594,5 +594,4 @@ def run(fname, mode):
     if mode=='train_agent':
         return agent_model(params, logger=logger)
     else:
-        print(f"Unexpected mode {mode}")
-        raise
+        raise ValueError(f"Unexpected mode {mode}")
