@@ -74,11 +74,12 @@ def init_model(
     model_name='vit_base',
     crop_size=224,
     pred_depth=6,
-    pred_emb_dim=384
+    pred_emb_dim=384,
+    in_chans=3
 ):
     encoder = vit.__dict__[model_name](
         img_size=[crop_size],
-        patch_size=patch_size)
+        patch_size=patch_size, in_chans=in_chans)
     predictor = vit.__dict__['vit_predictor'](
     #predictor = vit.__dict__['vit_micro_predictor'](
         num_patches=encoder.patch_embed.num_patches,
@@ -268,11 +269,12 @@ def init_agent_model(
     crop_size=224,
     pred_depth=6,
     pred_emb_dim=384,
-    num_actions=16
+    num_actions=16,
+    in_chans=3
 ):
     encoder = vit.__dict__[model_name](
         img_size=[crop_size],
-        patch_size=patch_size)
+        patch_size=patch_size, in_chans=in_chans)
     predictor = vit.__dict__['vit_agent'](
         num_patches=encoder.patch_embed.num_patches,
         embed_dim=encoder.embed_dim,

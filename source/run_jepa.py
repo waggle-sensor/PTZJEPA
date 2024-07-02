@@ -617,7 +617,8 @@ def world_model(args, logger=None, resume_preempt=False):
         crop_size=crop_size,
         pred_depth=pred_depth,
         pred_emb_dim=pred_emb_dim,
-        model_name=model_name)
+        model_name=model_name,
+        in_chans=4)
     target_encoder = copy.deepcopy(encoder)
 
 
@@ -629,7 +630,8 @@ def world_model(args, logger=None, resume_preempt=False):
         gaussian_blur=use_gaussian_blur,
         horizontal_flip=use_horizontal_flip,
         color_distortion=use_color_distortion,
-        color_jitter=color_jitter)
+        color_jitter=color_jitter,
+        to_tensor=True)
 
 
 
