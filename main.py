@@ -8,10 +8,10 @@ import shutil
 import glob
 import yaml
 import csv
-import traceback
 import subprocess
 from pathlib import Path
-
+import logging
+from logging import getLogger
 import argparse
 
 import numpy as np
@@ -34,6 +34,9 @@ tmp_dir = Path("/imgs")
 tmp_dir.mkdir(exist_ok=True, mode=0o777)
 persis_dir = Path("/persistence")
 persis_dir.mkdir(exist_ok=True, mode=0o777)
+
+logging.basicConfig(level=logging.INFO)
+logger = getLogger(__name__)
 
 
 def set_random_position(camera, args):
@@ -81,9 +84,9 @@ def tar_images(output_filename, folder_to_archive):
     try:
         cmd = ["tar", "cvf", output_filename, folder_to_archive]
         output = subprocess.check_output(cmd).decode("utf-8").strip()
-        print(output)
+        logger.info(output)
     except Exception:
-        print(f"E: {traceback.format_exc()}")
+        logger.exception("Error when tar images")
 
 
 def publish_images():
@@ -118,7 +121,7 @@ def verify_image(fp, try_fix=True):
             image.save(fp)
         return True
     except (OSError, IOError, SyntaxError) as e:
-        print("Error: %s : %s" % (fp, e.strerror))
+        logger.exception("Error: %s : %s", fp, e.strerror)
         return False
 
 
@@ -130,7 +133,7 @@ def collect_images(keepimages):
             try:
                 shutil.copy(fp, coll_dir)
             except OSError as e:
-                print("Error: %s : %s" % (fp, e.strerror))
+                logger.error("Error: %s : %s", fp, e.strerror)
         if keepimages:
             dest = persis_dir / "collected_imgs"
             dest.mkdir(exist_ok=True, mode=0o777)
@@ -139,7 +142,7 @@ def collect_images(keepimages):
                     dest_fp = shutil.copy(fp, dest)
                     os.chmod(dest_fp, 0o666) # RW for all
                 except OSError as e:
-                    print("Error: %s : %s" % (fp, e.strerror))
+                    logger.error("Error: %s : %s", fp, e.strerror)
 
 
 def prepare_images():
@@ -155,7 +158,7 @@ def prepare_images():
     df = pd.DataFrame(labels)
     df.to_csv("./labels.txt", header=None, index=False)
     os.chmod("./labels.txt", 0o666) # RW for all
-    print("Number of labels: ", df.size)
+    logger.info("Number of labels: %d", df.size)
 
 
 def prepare_dreams():
@@ -170,19 +173,19 @@ def prepare_dreams():
             labels.append(os.path.splitext(os.path.basename(f))[0])
         except OSError as e:
             os.remove(f)
-            print("Error: %s : %s" % (f, e.strerror))
+            logger.error("Error: %s : %s", f, e.strerror)
 
     df = pd.DataFrame(labels)
     df.to_csv("./labels", header=None, index=False)
-    print("Number of labels: ", df.size)
+    logger.info("Number of labels: %d", df.size)
 
 
 def operate_ptz(args):
     if args.camerabrand == 0:
-        print("Importing Hanwha")
+        logger.info("Importing Hanwha")
         from source import sunapi_control as camera_control
     elif args.camerabrand == 1:
-        print("Importing Axis")
+        logger.info("Importing Axis")
         from source import vapix_control as camera_control
 
         # from source import onvif_control as camera_control
@@ -291,6 +294,7 @@ def get_images_from_storage(args):
     if not args.storedimages:
         operate_ptz(args)
     else:
+        logger.info("Getting images from storage")
         if coll_dir.exists():
             # remove the directory and its contents
             # this ensure only images from persistence are used
@@ -301,7 +305,7 @@ def get_images_from_storage(args):
             try:
                 shutil.copy(fp, coll_dir)
             except OSError as e:
-                print("Error: %s : %s" % (fp, e.strerror))
+                logger.error("Error: %s : %s", fp, e.strerror)
 
 
 def pretraining_wrapper(arguments):
@@ -339,7 +343,7 @@ def behavior_learning(arguments):
 
 def environment_interaction(arguments):
     interaction_complete = env_inter(arguments, arguments.fname, "navigate_env")
-    print("interaction_complete: ", interaction_complete)
+    logger.info("interaction_complete: %s", interaction_complete)
 
 
 def lifelong_learning(arguments): 
@@ -352,10 +356,8 @@ def lifelong_learning(arguments):
         interaction_complete = env_inter(arguments, arguments.fname, 'navigate_env')
 
 
-
-def main():
+def get_argparser():
     parser = argparse.ArgumentParser("PTZ JEPA")
-
     # PTZ sampler
     parser.add_argument(
         "-ki",
@@ -435,8 +437,12 @@ def main():
     )
     # default='/percistence/configs/in1k_vith14_ep300.yaml')
 
-    args = parser.parse_args()
+    return parser
 
+
+def main():
+    
+    args = get_argparser().parse_args()
     os.environ["CUDA_VISIBLE_DEVICES"] = str(0)
 
     if args.run_mode == "train":
@@ -452,7 +458,7 @@ def main():
     elif args.run_mode == "lifelong":
         lifelong_learning(args)
 
-    print("DONE!")
+    logger.info("DONE!")
 
 
 if __name__ == "__main__":
