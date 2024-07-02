@@ -23,6 +23,7 @@ def make_transforms(
     horizontal_flip=False,
     color_distortion=False,
     gaussian_blur=False,
+    to_tensor=True,
     normalization=((0.485, 0.456, 0.406),
                    (0.229, 0.224, 0.225))
 ):
@@ -39,15 +40,16 @@ def make_transforms(
         return color_distort
 
     transform_list = []
-    transform_list += [transforms.RandomResizedCrop(crop_size, scale=crop_scale)]
+    transform_list.append(transforms.RandomResizedCrop(crop_size, scale=crop_scale))
     if horizontal_flip:
-        transform_list += [transforms.RandomHorizontalFlip()]
+        transform_list.append(transforms.RandomHorizontalFlip())
     if color_distortion:
-        transform_list += [get_color_distortion(s=color_jitter)]
+        transform_list.append(get_color_distortion(s=color_jitter))
     if gaussian_blur:
-        transform_list += [GaussianBlur(p=0.5)]
-    transform_list += [transforms.ToTensor()]
-    transform_list += [transforms.Normalize(normalization[0], normalization[1])]
+        transform_list.append(GaussianBlur(p=0.5))
+    if to_tensor:
+        transform_list.append(transforms.ToTensor())
+    transform_list.append(transforms.Normalize(normalization[0], normalization[1]))
 
     transform = transforms.Compose(transform_list)
     return transform

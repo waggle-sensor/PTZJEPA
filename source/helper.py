@@ -16,8 +16,8 @@ from source.utils.schedulers import (
     CosineWDSchedule)
 from source.utils.tensors import trunc_normal_
 
-logging.basicConfig(stream=sys.stdout, level=logging.INFO)
-logger = logging.getLogger()
+# logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 def load_checkpoint(
@@ -171,11 +171,12 @@ def init_world_model(
     model_name='vit_base',
     crop_size=224,
     pred_depth=6,
-    pred_emb_dim=384
+    pred_emb_dim=384,
+    in_chans=3,
 ):
     encoder = vit.__dict__[model_name](
         img_size=[crop_size],
-        patch_size=patch_size)
+        patch_size=patch_size, in_chans=in_chans)
     predictor = vit.__dict__['vit_rssm'](
         num_patches=encoder.patch_embed.num_patches,
         embed_dim=encoder.embed_dim,

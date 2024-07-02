@@ -1,11 +1,13 @@
 import os
-from typing import Iterable
-import pandas as pd
-from torchvision.io import read_image
-from PIL import Image
-from torch.utils.data import Dataset
 from pathlib import Path
+from typing import Iterable
 import numpy as np
+import pandas as pd
+from PIL import Image
+
+import torch
+from torch.utils.data import Dataset
+from torchvision.io import read_image
 
 
 class PTZImageDataset(Dataset):
@@ -40,20 +42,23 @@ class PTZImageDataset(Dataset):
         return len(self.img_labels)
 
     def __getitem__(self, idx):
-        # img_path = os.path.join(self.img_dir, self.img_labels[idx,0] + '.jpg')
         img_path = self.img_dir / (self.img_labels[idx] + ".jpg")
         image = Image.open(img_path)
+        # image = torch.from_numpy(np.transpose(np.array(image), (2, 0, 1)))
         # image = read_image(img_path)
         label = self.img_labels[idx]
-        # Adding a fourth channel as the depth
-        # image = torch.cat((image, torch.zeros_like(image[0])), dim=0) 
+        pos = self.positions[idx]
         if self.transform:
             image = self.transform(image)
+        # Adding a fourth channel as the depth
+        depth = torch.zeros(image.shape[1:]) + pos[-1]
+        image = torch.cat((image, depth.unsqueeze(0)), dim=0)
         # if self.target_transform:
         #     label = self.target_transform(label)
         if self.return_label:
             return image, label
-        return image, self.positions[idx]
+        # return only pan and tilt angle, zoom is added as a fourth channel
+        return image, pos[:2]
 
     def _parse_labels(self):
         # Note the suffix should have already been removed at this point

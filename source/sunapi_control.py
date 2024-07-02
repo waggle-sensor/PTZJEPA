@@ -11,7 +11,7 @@ import requests
 from requests.auth import HTTPDigestAuth
 from bs4 import BeautifulSoup
 
-logging.basicConfig(filename='sunapi.log', filemode='w', level=logging.DEBUG)
+# logging.basicConfig(filename='sunapi.log', filemode='w', level=logging.DEBUG)
 logger = logging.getLogger("HANWHA_camera")
 logger.info('Started')
 

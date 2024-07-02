@@ -239,8 +239,10 @@ class VisionTransformerPredictor(nn.Module):
     ):
         super().__init__()
         self.predictor_embed = nn.Linear(embed_dim, predictor_embed_dim, bias=True)
-        self.ptz_poss1_embed = nn.Linear(3, predictor_embed_dim, bias=True)
-        self.ptz_poss2_embed = nn.Linear(3, predictor_embed_dim, bias=True)
+        # Change PTZ position to PT position as zoom is encoded in the image as
+        # the fourth channel
+        self.ptz_poss1_embed = nn.Linear(2, predictor_embed_dim, bias=True)
+        self.ptz_poss2_embed = nn.Linear(2, predictor_embed_dim, bias=True)
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # stochastic depth decay rule
         # --
         self.predictor_pos_embed = nn.Parameter(torch.zeros(1, num_patches, predictor_embed_dim),
@@ -347,8 +349,8 @@ class VisionTransformerRSSM(nn.Module):
     ):
         super().__init__()
         self.predictor_embed = nn.Linear(embed_dim, predictor_embed_dim, bias=True)
-        self.ptz_poss1_embed = nn.Linear(3, predictor_embed_dim, bias=True)
-        self.ptz_poss2_embed = nn.Linear(3, predictor_embed_dim, bias=True)
+        self.ptz_poss1_embed = nn.Linear(2, predictor_embed_dim, bias=True)
+        self.ptz_poss2_embed = nn.Linear(2, predictor_embed_dim, bias=True)
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # stochastic depth decay rule
         # --
         self.predictor_pos_embed = nn.Parameter(torch.zeros(1, num_patches, predictor_embed_dim),
@@ -466,7 +468,7 @@ class VisionTransformerAgent(nn.Module):
     ):
         super().__init__()
         self.predictor_embed = nn.Linear(embed_dim, predictor_embed_dim, bias=True)
-        self.ptz_poss1_embed = nn.Linear(3, predictor_embed_dim, bias=True)
+        self.ptz_poss1_embed = nn.Linear(2, predictor_embed_dim, bias=True)
         #self.ptz_poss2_embed = nn.Linear(3, predictor_embed_dim, bias=True)
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # stochastic depth decay rule
         # --

@@ -10,9 +10,9 @@ import cv2
 from requests.auth import HTTPDigestAuth
 from bs4 import BeautifulSoup
 
-logging.basicConfig(filename='vapix.log',
-                    filemode='w',
-                    level=logging.DEBUG)
+# logging.basicConfig(filename='vapix.log',
+#                     filemode='w',
+#                     level=logging.DEBUG)
 logger = logging.getLogger("AXIS_camera")
 logger.info('Started')
 
@@ -37,6 +37,9 @@ class CameraControl:
         self.__pan_margin = pan_margin
         self.__tilt_margin = tilt_margin
         self.__zoom_margin = zoom_margin
+        # self.pan_range = (-180, 180)
+        # self.tilt_range = (-180, 180)
+        self.zoom_range = (1, 9999)
 
     @staticmethod
     def __merge_dicts(*dict_args) -> dict:
@@ -394,8 +397,6 @@ class CameraControl:
         # URL to capture image
         url = f"http://{self.__cam_ip}/axis-cgi/jpg/image.cgi"
         while lap < FOCUS_THRESHOLD:
-            # Sometimes it need '@', sometimes don't
-            # need to check the path
             # os.system("wget " + url + ' -O ' + directory.replace(' ', '_'))
             filename = filename.replace(' ', '_')
             # check this out for 401 error reason

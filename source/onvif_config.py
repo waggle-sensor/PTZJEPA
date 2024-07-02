@@ -4,8 +4,9 @@ Library for control AXIS PTZ cameras using Onvif
 import logging
 from onvif import ONVIFCamera
 
-logging.basicConfig(filename='log-onvif-config.log', filemode='w', level=logging.DEBUG)
-logging.info('Started')
+# logging.basicConfig(filename='log-onvif-config.log', filemode='w', level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+logger.info('Started')
 
 
 #pylint: disable=R0904
@@ -28,11 +29,11 @@ class CameraConfiguration:
             Return the ptz service object and media service object
         """
         mycam = ONVIFCamera(self.__cam_ip, 80, self.__cam_user, self.__cam_password)
-        logging.info('Create media service object')
+        logger.info('Create media service object')
         media = mycam.create_media_service()
-        logging.info('Get target profile')
+        logger.info('Get target profile')
         media_profile = media.GetProfiles()[0]
-        logging.info('Camera working!')
+        logger.info('Camera working!')
 
         self.mycam = mycam
         self.camera_media_profile = media_profile

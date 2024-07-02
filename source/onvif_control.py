@@ -4,8 +4,9 @@ Library for control AXIS PTZ cameras using Onvif
 import logging
 from onvif import ONVIFCamera
 
-logging.basicConfig(filename='teste-onvif.log', filemode='w', level=logging.DEBUG)
-logging.info('Started')
+# logging.basicConfig(filename='teste-onvif.log', filemode='w', level=logger.DEBUG)
+logger = logging.getLogger(__name__)
+logger.info('Started')
 
 #pylint: disable=R0904
 class CameraControl:
@@ -34,13 +35,13 @@ class CameraControl:
             Return the ptz service object and media service object
         """
         mycam = ONVIFCamera(self.__cam_ip, 80, self.__cam_user, self.__cam_password)
-        logging.info('Create media service object')
+        logger.info('Create media service object')
         media = mycam.create_media_service()
-        logging.info('Create ptz service object')
+        logger.info('Create ptz service object')
         ptz = mycam.create_ptz_service()
-        logging.info('Get target profile')
+        logger.info('Get target profile')
         media_profile = media.GetProfiles()[0]
-        logging.info('Camera working!')
+        logger.info('Camera working!')
 
         self.mycam = mycam
         self.camera_ptz = ptz
@@ -65,7 +66,7 @@ class CameraControl:
         request.ProfileToken = self.camera_media_profile.token
         request.Position = {'PanTilt': {'x': pan, 'y': tilt}, 'Zoom': zoom}
         resp = self.camera_ptz.AbsoluteMove(request)
-        logging.info('camera_command( aboslute_move(%f, %f, %f) )', pan, tilt, zoom)
+        logger.info('camera_command( aboslute_move(%f, %f, %f) )', pan, tilt, zoom)
         return resp
 
     def continuous_move(self, pan: float, tilt: float, zoom: float):
@@ -84,7 +85,7 @@ class CameraControl:
         request.ProfileToken = self.camera_media_profile.token
         request.Velocity = {'PanTilt': {'x': pan, 'y': tilt}, 'Zoom': zoom}
         resp = self.camera_ptz.ContinuousMove(request)
-        logging.info('camera_command( continuous_move(%f, %f, %f) )', pan, tilt, zoom)
+        logger.info('camera_command( continuous_move(%f, %f, %f) )', pan, tilt, zoom)
         return resp
 
     def relative_move(self, pan: float, tilt: float, zoom: float):
@@ -103,7 +104,7 @@ class CameraControl:
         request.ProfileToken = self.camera_media_profile.token
         request.Translation = {'PanTilt': {'x': pan, 'y': tilt}, 'Zoom': zoom}
         resp = self.camera_ptz.RelativeMove(request)
-        logging.info('camera_command( relative_move(%f, %f, %f) )', pan, tilt, zoom)
+        logger.info('camera_command( relative_move(%f, %f, %f) )', pan, tilt, zoom)
         return resp
 
     def stop_move(self):
@@ -116,7 +117,7 @@ class CameraControl:
         request = self.camera_ptz.create_type('Stop')
         request.ProfileToken = self.camera_media_profile.token
         resp = self.camera_ptz.Stop(request)
-        logging.info('camera_command( stop_move() )')
+        logger.info('camera_command( stop_move() )')
         return resp
 
     def set_home_position(self):
@@ -130,7 +131,7 @@ class CameraControl:
         request.ProfileToken = self.camera_media_profile.token
         resp = self.camera_ptz.SetHomePosition(request)
         self.camera_ptz.Stop({'ProfileToken': self.camera_media_profile.token})
-        logging.info('camera_command( set_home_position() )')
+        logger.info('camera_command( set_home_position() )')
         return resp
 
     def go_home_position(self):
@@ -143,7 +144,7 @@ class CameraControl:
         request = self.camera_ptz.create_type('GotoHomePosition')
         request.ProfileToken = self.camera_media_profile.token
         resp = self.camera_ptz.GotoHomePosition(request)
-        logging.info('camera_command( go_home_position() )')
+        logger.info('camera_command( go_home_position() )')
         return resp
 
     def get_ptz(self):
@@ -151,7 +152,7 @@ class CameraControl:
         Operation to request PTZ status.
 
         Returns:
-            Returns a list with the values ​​of Pan, Tilt and Zoom
+            Returns a list with the values of Pan, Tilt and Zoom
         """
         request = self.camera_ptz.create_type('GetStatus')
         request.ProfileToken = self.camera_media_profile.token
@@ -160,7 +161,7 @@ class CameraControl:
         tilt = ptz_status.Position.PanTilt.y
         zoom = ptz_status.Position.Zoom.x
         ptz_list = (pan, tilt, zoom)
-        logging.info('camera_command( get_ptz() )')
+        logger.info('camera_command( get_ptz() )')
         return ptz_list
 
     def set_preset(self, preset_name: str):
@@ -176,16 +177,16 @@ class CameraControl:
         request = self.camera_ptz.create_type('SetPreset')
         request.ProfileToken = self.camera_media_profile.token
         request.PresetName = preset_name
-        logging.info('camera_command( set_preset%s) )', preset_name)
+        logger.info('camera_command( set_preset%s) )', preset_name)
 
         for i, _ in enumerate(presets):
             if str(presets[i].Name) == preset_name:
-                logging.warning(
+                logger.warning(
                     'Preset (\'%s\') not created. Preset already exists!', preset_name)
                 return None
 
         ptz_set_preset = self.camera_ptz.SetPreset(request)
-        logging.info('Preset (\'%s\') created!', preset_name)
+        logger.info('Preset (\'%s\') created!', preset_name)
         return ptz_set_preset
 
     def get_preset(self):
@@ -196,7 +197,7 @@ class CameraControl:
             Returns a list of tuples with the presets.
         """
         ptz_get_presets = CameraControl.get_preset_complete(self)
-        logging.info('camera_command( get_preset() )')
+        logger.info('camera_command( get_preset() )')
 
         presets = []
         for i, _ in enumerate(ptz_get_presets):
@@ -228,14 +229,14 @@ class CameraControl:
         presets = CameraControl.get_preset_complete(self)
         request = self.camera_ptz.create_type('RemovePreset')
         request.ProfileToken = self.camera_media_profile.token
-        logging.info('camera_command( remove_preset(%s) )', preset_name)
+        logger.info('camera_command( remove_preset(%s) )', preset_name)
         for i, _ in enumerate(presets):
             if str(presets[i].Name) == preset_name:
                 request.PresetToken = presets[i].token
                 ptz_remove_preset = self.camera_ptz.RemovePreset(request)
-                logging.info('Preset (\'%s\') removed!', preset_name)
+                logger.info('Preset (\'%s\') removed!', preset_name)
                 return ptz_remove_preset
-        logging.warning("Preset (\'%s\') not found!", preset_name)
+        logger.warning("Preset (\'%s\') not found!", preset_name)
         return None
 
     def go_to_preset(self, preset_position: str):
@@ -251,13 +252,13 @@ class CameraControl:
         presets = CameraControl.get_preset_complete(self)
         request = self.camera_ptz.create_type('GotoPreset')
         request.ProfileToken = self.camera_media_profile.token
-        logging.info('camera_command( go_to_preset(%s) )', preset_position)
+        logger.info('camera_command( go_to_preset(%s) )', preset_position)
         for i, _ in enumerate(presets):
             str1 = str(presets[i].Name)
             if str1 == preset_position:
                 request.PresetToken = presets[i].token
                 resp = self.camera_ptz.GotoPreset(request)
-                logging.info("Goes to (\'%s\')", preset_position)
+                logger.info("Goes to (\'%s\')", preset_position)
                 return resp
-        logging.warning("Preset (\'%s\') not found!", preset_position)
+        logger.warning("Preset (\'%s\') not found!", preset_position)
         return None
