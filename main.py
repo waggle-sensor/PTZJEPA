@@ -154,6 +154,7 @@ def prepare_images():
             fp.unlink()
     df = pd.DataFrame(labels)
     df.to_csv("./labels.txt", header=None, index=False)
+    os.chmod("./labels.txt", 0o666) # RW for all
     print("Number of labels: ", df.size)
 
 
@@ -295,7 +296,8 @@ def get_images_from_storage(args):
             # this ensure only images from persistence are used
             shutil.rmtree(coll_dir)
         coll_dir.mkdir(mode=0o777)
-        for fp in persis_dir.glob("*.jpg"):
+        img_dir = persis_dir / "collected_imgs"
+        for fp in img_dir.glob("*.jpg"):
             try:
                 shutil.copy(fp, coll_dir)
             except OSError as e:
