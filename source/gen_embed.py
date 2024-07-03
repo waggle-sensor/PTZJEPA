@@ -14,7 +14,7 @@ from run_jepa import (
     forward_target,
 )
 from transforms import make_transforms
-from datasets.ptz_dataset import PTZImageDataset
+from datasets.ptz_dataset import PTZImageDataset, get_position_datetime_from_labels
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logger = logging.getLogger("gen_embed")
@@ -55,6 +55,13 @@ def parse_args():
         help="whether to use the world model",
     )
     parser.add_argument(
+        "-ch",
+        "--in_chans",
+        type=int,
+        default=3,
+        help="number of input channels",
+    )
+    parser.add_argument(
         "-d",
         "--device",
         type=str,
@@ -63,9 +70,9 @@ def parse_args():
     )
     parser.add_argument(
         "-r",
-        '--remove_corrupt',
-        action='store_true',
-        help='Remove corrupt images from the directory'
+        "--remove_corrupt",
+        action="store_true",
+        help="Remove corrupt images from the directory",
     )
     return parser.parse_args()
 
@@ -86,7 +93,7 @@ def check_file_integrity(dir_path, remove_corrupt=False):
         None
     """
     from PIL import Image
-    
+
     dir_path = Path(dir_path)
     if not dir_path.exists():
         raise FileNotFoundError(f"{dir_path} does not exist")
@@ -98,7 +105,7 @@ def check_file_integrity(dir_path, remove_corrupt=False):
             image.verify()
             # need to reopen to save the image again
             image = Image.open(fp)
-            image.save(fp) # to fix corrupted images
+            image.save(fp)  # to fix corrupted images
         except (OSError, IOError) as e:
             logger.error("Got error: %s", e)
             logger.error("Corrupted image: %s", fp)
@@ -107,7 +114,13 @@ def check_file_integrity(dir_path, remove_corrupt=False):
 
 
 def generate_embedding(
-    config_fpath, checkpoint_fpath: str, img_dir: str, output_dir: str, world_model=False, device=None
+    config_fpath,
+    checkpoint_fpath: str,
+    img_dir: str,
+    output_dir: str,
+    world_model=False,
+    device=None,
+    in_chans=3,
 ):
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -138,6 +151,7 @@ def generate_embedding(
             pred_depth=pred_depth,
             pred_emb_dim=pred_emb_dim,
             model_name=model_name,
+            in_chans=in_chans
         )
     else:
         encoder, predictor = init_model(
@@ -147,6 +161,7 @@ def generate_embedding(
             pred_depth=pred_depth,
             pred_emb_dim=pred_emb_dim,
             model_name=model_name,
+            in_chans=in_chans
         )
     target_encoder = copy.deepcopy(encoder)
     checkpoint = torch.load(checkpoint_fpath, map_location=torch.device("cpu"))
@@ -177,9 +192,10 @@ def generate_embedding(
     li_pred_rewards = []
     save_data = lambda arr, fpath: np.vstack(np.array(arr)).dump(fpath)
     for i, (img, label) in enumerate(dataloader):
-        pos = torch.tensor(data.get_position_from_label(label))
+        pos = torch.tensor(get_position_datetime_from_labels(label)[0])
+        # print(pos)
         img = img.to(device, non_blocking=True)
-        pos = pos.to(device, non_blocking=True)
+        pos = pos.to(device, non_blocking=True, dtype=torch.float32)[:,:2]
         # this would duplicate each image in the batch with all
         # other images in the same batch.
         if world_model:
@@ -232,6 +248,6 @@ if __name__ == "__main__":
         args.img_dir,
         args.output_dir,
         args.world_model,
-        args.device
+        args.device,
+        args.in_chans,
     )
-    
