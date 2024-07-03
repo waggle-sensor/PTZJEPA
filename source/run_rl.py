@@ -115,6 +115,7 @@ def agent_model(args, logger=None, resume_preempt=False):
     dream_length = args['dreamer']['dream_length']
 
     # -- ACTIONS
+    action_noop = args['action']['noop']
     action_short_left = args['action']['short']['left']
     action_short_right = args['action']['short']['right']
     action_short_left_up = args['action']['short']['left_up']
@@ -133,23 +134,33 @@ def agent_model(args, logger=None, resume_preempt=False):
     action_long_zoom_in = args['action']['long']['zoom_in']
     action_long_zoom_out = args['action']['long']['zoom_out']
 
+    action_jump_left = args['action']['jump']['left']
+    action_jump_right = args['action']['jump']['right']
+    action_jump_up = args['action']['jump']['up']
+    action_jump_down = args['action']['jump']['down']
+
     actions={}
-    actions[0]=action_short_left
-    actions[1]=action_short_right
-    actions[2]=action_short_left_up
-    actions[3]=action_short_right_up
-    actions[4]=action_short_left_down
-    actions[5]=action_short_right_down
-    actions[6]=action_short_up
-    actions[7]=action_short_down
-    actions[8]=action_short_zoom_in
-    actions[9]=action_short_zoom_out
-    actions[10]=action_long_left
-    actions[11]=action_long_right
-    actions[12]=action_long_up
-    actions[13]=action_long_down
-    actions[14]=action_long_zoom_in
-    actions[15]=action_long_zoom_out
+    actions[0]=action_noop
+    actions[1]=action_short_left
+    actions[2]=action_short_right
+    actions[3]=action_short_left_up
+    actions[4]=action_short_right_up
+    actions[5]=action_short_left_down
+    actions[6]=action_short_right_down
+    actions[7]=action_short_up
+    actions[8]=action_short_down
+    actions[9]=action_short_zoom_in
+    actions[10]=action_short_zoom_out
+    actions[11]=action_long_left
+    actions[12]=action_long_right
+    actions[13]=action_long_up
+    actions[14]=action_long_down
+    actions[15]=action_long_zoom_in
+    actions[16]=action_long_zoom_out
+    actions[17]=action_jump_left
+    actions[18]=action_jump_right
+    actions[19]=action_jump_up
+    actions[20]=action_jump_down
 
     num_actions=len(actions.keys())
 
@@ -224,7 +235,8 @@ def agent_model(args, logger=None, resume_preempt=False):
     def prepare_data(dataloader, size):
         memory = ReplayMemory(size)
         for itr, episodes in enumerate(dataloader):
-            for state_sequence, position_sequence, reward_sequence, action_sequence in zip(episodes['state_sequence'], episodes['possition_sequence'], episodes['reward_sequence'], episodes['action_sequence']):
+            print('episodes keys ', episodes.keys())
+            for state_sequence, position_sequence, reward_sequence, action_sequence in zip(episodes['state_sequence'], episodes['position_sequence'], episodes['reward_sequence'], episodes['action_sequence']):
                 for step, (state, position) in enumerate(zip(state_sequence, position_sequence)):
                     if step < action_sequence.shape[0]:
                         # pick next action
