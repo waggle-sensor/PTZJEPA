@@ -54,9 +54,9 @@ def get_random_position(camera_brand):
 def change_allocentric_position(position1, position2, camera_brand):
     pan, tilt, _ = get_random_position(camera_brand)
     position1[:,0] -= pan
-    position1[:,1] -= tilt
+    #position1[:,1] -= tilt
     position2[:,0] -= pan
-    position2[:,1] -= tilt
+    #position2[:,1] -= tilt
 
 def forward_target(images, target_encoder):
     h = target_encoder(images)
@@ -1238,7 +1238,7 @@ def dreamer(args, logger=None, resume_preempt=False):
     def change_allocentric_position(position):
         pan, tilt, _ = get_random_position(camera_brand)
         position[:,0] = position[:,0] - pan
-        position[:,1] = position[:,1] - tilt
+        #position[:,1] = position[:,1] - tilt
 
     # -- DREAM LOOP
     for itr, (imgs, poss) in enumerate(dataloader):
