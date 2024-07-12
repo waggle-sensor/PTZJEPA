@@ -68,10 +68,12 @@ def forward_context(images, position1, position2, encoder, predictor,
     if change_position:
         change_allocentric_position(position1, position2, camera_brand)
     encoder_z = encoder(images)
-    pred_z, pred_r = predictor(encoder_z, position1, position2)
     if return_rewards:
+        pred_z, pred_r = predictor(encoder_z, position1, position2)
         return pred_z, pred_r
-    return pred_z
+    else:
+        pred_z = predictor(encoder_z, position1, position2)
+        return pred_z
 
 def arrange_inputs(images, positions, device):
     context_imgs = []
