@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import Iterable
+from typing import List
 import numpy as np
 import pandas as pd
 from PIL import Image
@@ -67,8 +67,8 @@ class PTZImageDataset(Dataset):
         return get_position_datetime_from_labels(self.img_labels)
 
 
-def get_position_datetime_from_labels(labels: Iterable[str]):
-    if not isinstance(labels, Iterable):
+def get_position_datetime_from_labels(labels: "List[str] | str"):
+    if not isinstance(labels, List):
         # coerce to list
         labels = [labels]
     pos, date_time = list(
