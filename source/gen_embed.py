@@ -177,7 +177,7 @@ def generate_embedding(
     # load dataset
     logger.info("Loading dataset")
     # first need to sort data using timestamp
-    data = PTZImageDataset(img_dir, transform=make_transforms(), return_label=True)
+    data = PTZImageDataset(img_dir, transform=make_transforms(crop_size=crop_size), return_label=True)
     dataloader = DataLoader(data, batch_size=batch_size, shuffle=False)
     ipe = len(dataloader)
 
