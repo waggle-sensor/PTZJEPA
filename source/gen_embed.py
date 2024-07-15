@@ -18,7 +18,7 @@ from datasets.ptz_dataset import PTZImageDataset, get_position_datetime_from_lab
 import h5py
 
 
-logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("gen_embed")
 
 
@@ -62,6 +62,12 @@ def parse_args():
         type=str,
         default=None,
         help="device to run the model on",
+    )
+    parser.add_argument(
+        "-sic",
+        "--skip_integrity_check",
+        action="store_true",
+        help="Skip the integrity check of image files",
     )
     parser.add_argument(
         "-r",
@@ -285,7 +291,9 @@ def generate_embedding(
 
 if __name__ == "__main__":
     args = parse_args()
-    check_file_integrity(args.img_dir, remove_corrupt=args.remove_corrupt)
+    if not args.skip_integrity_check:
+        logger.info("Check images integrity for %s", args.img_dir)
+        check_file_integrity(args.img_dir, remove_corrupt=args.remove_corrupt)
     generate_embedding(
         args.config_fpath,
         args.checkpoint_fpath,
