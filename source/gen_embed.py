@@ -204,7 +204,7 @@ def generate_embedding(
                     name=lab,
                     data=(
                         contx_encoder_embed[outer_batch_idx][
-                            inner_batch_idx * 4 : (inner_batch_idx + 1) * 4
+                            inner_batch_idx * batch_size : (inner_batch_idx + 1) * batch_size
                         ]
                         if world_model
                         else contx_encoder_embed[outer_batch_idx][inner_batch_idx]
@@ -215,7 +215,7 @@ def generate_embedding(
                     name=lab,
                     data=(
                         predictor_embed[outer_batch_idx][
-                            inner_batch_idx * 4 : (inner_batch_idx + 1) * 4
+                            inner_batch_idx * batch_size : (inner_batch_idx + 1) * batch_size
                         ]
                         if world_model
                         else predictor_embed[outer_batch_idx][inner_batch_idx]
@@ -230,7 +230,7 @@ def generate_embedding(
                     name=lab,
                     data=(
                         target_encoder_embed[outer_batch_idx][
-                            inner_batch_idx * 4 : (inner_batch_idx + 1) * 4
+                            inner_batch_idx * batch_size : (inner_batch_idx + 1) * batch_size
                         ]
                         if world_model
                         else target_encoder_embed[outer_batch_idx][inner_batch_idx]
