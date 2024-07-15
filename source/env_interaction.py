@@ -90,6 +90,7 @@ def control_ptz(args, params, logger=None, resume_preempt=False):
     tag = params['logging']['write_tag']
 
     # -- ACTIONS
+    action_noop = params['action']['noop']
     action_short_left = params['action']['short']['left']
     action_short_right = params['action']['short']['right']
     action_short_left_up = params['action']['short']['left_up']
@@ -108,23 +109,33 @@ def control_ptz(args, params, logger=None, resume_preempt=False):
     action_long_zoom_in = params['action']['long']['zoom_in']
     action_long_zoom_out = params['action']['long']['zoom_out']
 
+    action_jump_left = params['action']['jump']['left']
+    action_jump_right = params['action']['jump']['right']
+    action_jump_up = params['action']['jump']['up']
+    action_jump_down = params['action']['jump']['down']
+
     actions={}
-    actions[0]=action_short_left
-    actions[1]=action_short_right
-    actions[2]=action_short_left_up
-    actions[3]=action_short_right_up
-    actions[4]=action_short_left_down
-    actions[5]=action_short_right_down
-    actions[6]=action_short_up
-    actions[7]=action_short_down
-    actions[8]=action_short_zoom_in
-    actions[9]=action_short_zoom_out
-    actions[10]=action_long_left
-    actions[11]=action_long_right
-    actions[12]=action_long_up
-    actions[13]=action_long_down
-    actions[14]=action_long_zoom_in
-    actions[15]=action_long_zoom_out
+    actions[0]=action_noop
+    actions[1]=action_short_left
+    actions[2]=action_short_right
+    actions[3]=action_short_left_up
+    actions[4]=action_short_right_up
+    actions[5]=action_short_left_down
+    actions[6]=action_short_right_down
+    actions[7]=action_short_up
+    actions[8]=action_short_down
+    actions[9]=action_short_zoom_in
+    actions[10]=action_short_zoom_out
+    actions[11]=action_long_left
+    actions[12]=action_long_right
+    actions[13]=action_long_up
+    actions[14]=action_long_down
+    actions[15]=action_long_zoom_in
+    actions[16]=action_long_zoom_out
+    actions[17]=action_jump_left
+    actions[18]=action_jump_right
+    actions[19]=action_jump_up
+    actions[20]=action_jump_down
 
     num_actions=len(actions.keys())
 
@@ -458,6 +469,10 @@ def operate_ptz(args, actions, target_encoder, transform, target_predictor, devi
     directory = './collected_imgs'
     if os.path.exists(directory):
         shutil.rmtree(directory)
+
+    if os.path.exists('./imgs'):
+        shutil.rmtree('./imgs')
+
     for iteration in range(iterations):
         with Plugin() as plugin:
             plugin.publish('iteration.number', iteration)
@@ -478,11 +493,26 @@ def operate_ptz(args, actions, target_encoder, transform, target_predictor, devi
             state_batch = target_encoder(image.to(device))
             with torch.no_grad():
                 #next_state_values = target_predictor(state_batch, position_batch)
-                next_state_indices = target_predictor(state_batch, position_batch).max(1).indices.item()
+                max_next_state_indices = target_predictor(state_batch, position_batch).max(1).indices.item()
                 #next_state_values = target_predictor(state_batch, position_batch).max(1).values
+                next_state_values = target_predictor(state_batch, position_batch)
+                # Apply softmax to convert to probabilities
+                probs = F.softmax(next_state_values, dim=1)
+                # Sample indices based on the probability distribution
+                num_samples = 1  # Adjust as needed
+                sampled_indices = torch.multinomial(probs.squeeze(), num_samples, replacement=True)
 
-            print('next_state_indices: ', next_state_indices)
-            next_action = actions[next_state_indices]
+            print('next_state_values: ', next_state_values)
+            print('probs: ', probs)
+            #print('max_next_state_indices: ', max_next_state_indices)
+            if torch.rand([1]).item() > 0.9:
+                print('Sampled action')
+                print('sampled_indices: ', sampled_indices.item())
+                next_action = actions[sampled_indices.item()]
+            else:
+                print('Rewarded action')
+                print('max_next_state_indices: ', max_next_state_indices)
+                next_action = actions[max_next_state_indices]
             print('next_action: ', next_action)
 
             pan_modulation = 2
@@ -538,11 +568,10 @@ def operate_ptz(args, actions, target_encoder, transform, target_predictor, devi
 
 
 def run(args, fname, mode):
-    logging.basicConfig()
-    logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
 
-    logger.info(f'called-params {fname}')
+    logger.info('called-params %s', fname)
 
     # -- load script params
     params = None
@@ -556,5 +585,4 @@ def run(args, fname, mode):
     if mode=='navigate_env':
         return control_ptz(args, params, logger=logger)
     else:
-        print(f"Unexpected mode {mode}")
-        raise
+        raise ValueError(f"Unexpected mode {mode}")

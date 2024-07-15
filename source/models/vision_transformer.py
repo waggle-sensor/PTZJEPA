@@ -403,7 +403,7 @@ class VisionTransformerRSSM(nn.Module):
         # -- affecting them by the first ptz position
         x_pos_embed = self.predictor_pos_embed.repeat(B, 1, 1)
 
-        pred_ptz_poss1_embeds = self.ptz_poss1_embed(poss_x)
+        pred_ptz_poss1_embeds = self.ptz_poss1_embed(poss_x.float())
         pred_ptz_poss1_tokens = pred_ptz_poss1_embeds.repeat(x_pos_embed.size(1), 1, 1)
         pred_ptz_poss1_tokens = pred_ptz_poss1_tokens.permute(1, 0, 2)
 
@@ -415,7 +415,7 @@ class VisionTransformerRSSM(nn.Module):
         # -- concat second ptz position tokens to x
         pos_embs = self.predictor_pos_embed.repeat(B, 1, 1)
 
-        pred_ptz_poss2_embeds = self.ptz_poss2_embed(poss)
+        pred_ptz_poss2_embeds = self.ptz_poss2_embed(poss.float())
         pred_ptz_poss2_tokens = pred_ptz_poss2_embeds.repeat(pos_embs.size(1), 1, 1)
         pred_ptz_poss2_tokens = pred_ptz_poss2_tokens.permute(1, 0, 2)
         x = torch.cat([x, pred_ptz_poss2_tokens], dim=1)
@@ -461,7 +461,7 @@ class VisionTransformerAgent(nn.Module):
         drop_path_rate=0.0,
         norm_layer=nn.LayerNorm,
         init_std=0.02,
-        num_actions=16,
+        num_actions=21,
         **kwargs
     ):
         super().__init__()

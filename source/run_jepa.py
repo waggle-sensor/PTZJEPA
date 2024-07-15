@@ -54,9 +54,9 @@ def get_random_position(camera_brand):
 def change_allocentric_position(position1, position2, camera_brand):
     pan, tilt, _ = get_random_position(camera_brand)
     position1[:,0] -= pan
-    position1[:,1] -= tilt
+    #position1[:,1] -= tilt
     position2[:,0] -= pan
-    position2[:,1] -= tilt
+    #position2[:,1] -= tilt
 
 def forward_target(images, target_encoder):
     h = target_encoder(images)
@@ -68,10 +68,12 @@ def forward_context(images, position1, position2, encoder, predictor,
     if change_position:
         change_allocentric_position(position1, position2, camera_brand)
     encoder_z = encoder(images)
-    pred_z, pred_r = predictor(encoder_z, position1, position2)
     if return_rewards:
+        pred_z, pred_r = predictor(encoder_z, position1, position2)
         return pred_z, pred_r
-    return pred_z
+    else:
+        pred_z = predictor(encoder_z, position1, position2)
+        return pred_z
 
 def arrange_inputs(images, positions, device):
     context_imgs = []
@@ -726,7 +728,8 @@ def world_model(args, logger=None, resume_preempt=False):
             if param.grad is not None:
                 grads.append(param.grad.view(-1))
         grads = torch.cat(grads)
-        g = grads.abs().sum()
+        #g = grads.abs().sum()
+        g = grads.abs().mean()
         target_encoder.zero_grad()
         # do not update the gradient for context branch for the auxiliary
         # gradient calculation pass
@@ -782,7 +785,8 @@ def world_model(args, logger=None, resume_preempt=False):
             if param.grad != None:
                 grads.append(param.grad.view(-1))
         grads = torch.cat(grads)
-        g = grads.abs().sum()
+        #g = grads.abs().sum()
+        g = grads.abs().mean()
         target_encoder.zero_grad()
 
         # Step 3. Forward
@@ -817,6 +821,9 @@ def world_model(args, logger=None, resume_preempt=False):
     def loss_fn(z, r, h, g):
         loss1 = F.smooth_l1_loss(z, h)
         loss2 = F.smooth_l1_loss(r, g.repeat(r.shape))# * 1e-4
+        #print('reward shape ', r.shape)
+        #print('reward mean ', r.mean())
+        #print('reward ', g)
         loss = loss1 + loss2
         return loss
 
@@ -967,6 +974,7 @@ def dreamer(args, logger=None, resume_preempt=False):
     tag = args['logging']['write_tag']
 
     # -- ACTIONS
+    action_noop = args['action']['noop']
     action_short_left = args['action']['short']['left']
     action_short_right = args['action']['short']['right']
     action_short_left_up = args['action']['short']['left_up']
@@ -985,23 +993,33 @@ def dreamer(args, logger=None, resume_preempt=False):
     action_long_zoom_in = args['action']['long']['zoom_in']
     action_long_zoom_out = args['action']['long']['zoom_out']
 
+    action_jump_left = args['action']['jump']['left']
+    action_jump_right = args['action']['jump']['right']
+    action_jump_up = args['action']['jump']['up']
+    action_jump_down = args['action']['jump']['down']
+
     actions={}
-    actions[0]=action_short_left
-    actions[1]=action_short_right
-    actions[2]=action_short_left_up
-    actions[3]=action_short_right_up
-    actions[4]=action_short_left_down
-    actions[5]=action_short_right_down
-    actions[6]=action_short_up
-    actions[7]=action_short_down
-    actions[8]=action_short_zoom_in
-    actions[9]=action_short_zoom_out
-    actions[10]=action_long_left
-    actions[11]=action_long_right
-    actions[12]=action_long_up
-    actions[13]=action_long_down
-    actions[14]=action_long_zoom_in
-    actions[15]=action_long_zoom_out
+    actions[0]=action_noop
+    actions[1]=action_short_left
+    actions[2]=action_short_right
+    actions[3]=action_short_left_up
+    actions[4]=action_short_right_up
+    actions[5]=action_short_left_down
+    actions[6]=action_short_right_down
+    actions[7]=action_short_up
+    actions[8]=action_short_down
+    actions[9]=action_short_zoom_in
+    actions[10]=action_short_zoom_out
+    actions[11]=action_long_left
+    actions[12]=action_long_right
+    actions[13]=action_long_up
+    actions[14]=action_long_down
+    actions[15]=action_long_zoom_in
+    actions[16]=action_long_zoom_out
+    actions[17]=action_jump_left
+    actions[18]=action_jump_right
+    actions[19]=action_jump_up
+    actions[20]=action_jump_down
 
     # -- MEMORY
     memory_dreams = args['memory']['dreams']
@@ -1222,7 +1240,7 @@ def dreamer(args, logger=None, resume_preempt=False):
     def change_allocentric_position(position):
         pan, tilt, _ = get_random_position(camera_brand)
         position[:,0] = position[:,0] - pan
-        position[:,1] = position[:,1] - tilt
+        #position[:,1] = position[:,1] - tilt
 
     # -- DREAM LOOP
     for itr, (imgs, poss) in enumerate(dataloader):
@@ -1242,11 +1260,10 @@ def dreamer(args, logger=None, resume_preempt=False):
 
 
 def run(fname, mode):
-    logging.basicConfig()
-    logger = logging.getLogger("run_jepa")
-    logger.setLevel(logging.INFO)
+    logging.basicConfig(level=logging.info)
+    logger = logging.getLogger(__name__)
 
-    logger.info(f'called-params {fname}')
+    logger.info('called-params %s', fname)
 
     # -- load script params
     params = None

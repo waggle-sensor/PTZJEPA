@@ -89,21 +89,29 @@ plateau:
   #threshold: 1.0
   threshold: 0.01
   wm_patience: 10
-  wm_threshold: 1.0
+  #wm_threshold: 1.0
+  wm_threshold: 0.01
   rl_patience: 10
   rl_threshold: 0.01
 memory:
+  #models: 1
   models: 100
+  #memory_models: 1
   memory_models: 100
   dreams: 50
   #dreams: 15
   #dreams: 10
+  #rl_models: 1
   rl_models: 100
 dreamer:
   #number_of_dreams: 15
   number_of_dreams: 20
   dream_length: 10
 action:
+  noop:
+  - 0.0
+  - 0.0
+  - 0.0
   short:
     left:
     - -0.1
@@ -170,3 +178,20 @@ action:
     - 0.0
     - 0.0
     - -0.2
+  jump:
+    left:
+    - -5.0
+    - 0.0
+    - 0.0
+    right:
+    - 5.0
+    - 0.0
+    - 0.0
+    up:
+    - 0.0
+    - 3.0
+    - 0.0
+    down:
+    - 0.0
+    - -3.0
+    - 0.0
