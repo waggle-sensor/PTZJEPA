@@ -14,7 +14,9 @@ from run_jepa import (
     forward_target,
 )
 from transforms import make_transforms
-from datasets.ptz_dataset import PTZImageDataset
+from datasets.ptz_dataset import PTZImageDataset, get_position_datetime_from_labels
+import h5py
+
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logger = logging.getLogger("gen_embed")
@@ -63,9 +65,9 @@ def parse_args():
     )
     parser.add_argument(
         "-r",
-        '--remove_corrupt',
-        action='store_true',
-        help='Remove corrupt images from the directory'
+        "--remove_corrupt",
+        action="store_true",
+        help="Remove corrupt images from the directory",
     )
     return parser.parse_args()
 
@@ -86,7 +88,7 @@ def check_file_integrity(dir_path, remove_corrupt=False):
         None
     """
     from PIL import Image
-    
+
     dir_path = Path(dir_path)
     if not dir_path.exists():
         raise FileNotFoundError(f"{dir_path} does not exist")
@@ -98,7 +100,7 @@ def check_file_integrity(dir_path, remove_corrupt=False):
             image.verify()
             # need to reopen to save the image again
             image = Image.open(fp)
-            image.save(fp) # to fix corrupted images
+            image.save(fp)  # to fix corrupted images
         except (OSError, IOError) as e:
             logger.error("Got error: %s", e)
             logger.error("Corrupted image: %s", fp)
@@ -107,7 +109,12 @@ def check_file_integrity(dir_path, remove_corrupt=False):
 
 
 def generate_embedding(
-    config_fpath, checkpoint_fpath: str, img_dir: str, output_dir: str, world_model=False, device=None
+    config_fpath,
+    checkpoint_fpath: str,
+    img_dir: str,
+    output_dir: str,
+    world_model=False,
+    device=None,
 ):
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -175,9 +182,63 @@ def generate_embedding(
     predictor_embed = []
     target_encoder_embed = []
     li_pred_rewards = []
-    save_data = lambda arr, fpath: np.vstack(np.array(arr)).dump(fpath)
+    li_contx_pos = []
+    li_target_pos = []
+
+    def save_data_h5():
+        save_data = lambda arr, fpath: np.vstack(np.array(arr)).dump(fpath)
+        # This private function only takes local scope variables and
+        # save them to files.
+        # Input is not required
+        for i, lab in enumerate(labels):
+            outer_batch_idx = i // batch_size
+            inner_batch_idx = i % batch_size
+            with h5py.File(output_dir / "embeds_contx_encoder.h5", "a") as h5f:
+                h5f.create_dataset(
+                    name=lab,
+                    data=(
+                        contx_encoder_embed[outer_batch_idx][
+                            inner_batch_idx * 4 : (inner_batch_idx + 1) * 4
+                        ]
+                        if world_model
+                        else contx_encoder_embed[outer_batch_idx][inner_batch_idx]
+                    ),
+                )
+            with h5py.File(output_dir / "embeds_predictor.h5", "a") as h5f:
+                h5f.create_dataset(
+                    name=lab,
+                    data=(
+                        predictor_embed[outer_batch_idx][
+                            inner_batch_idx * 4 : (inner_batch_idx + 1) * 4
+                        ]
+                        if world_model
+                        else predictor_embed[outer_batch_idx][inner_batch_idx]
+                    ),
+                )
+            # with h5py.File(output_dir / "rewards_predictor.h5", "a") as h5f:
+            #     h5f.create_dataset(
+            #         name=lab, data=li_pred_rewards[i]
+            #     )
+            with h5py.File(output_dir / "embeds_target_encoder.h5", "a") as h5f:
+                h5f.create_dataset(
+                    name=lab,
+                    data=(
+                        target_encoder_embed[outer_batch_idx][
+                            inner_batch_idx * 4 : (inner_batch_idx + 1) * 4
+                        ]
+                        if world_model
+                        else target_encoder_embed[outer_batch_idx][inner_batch_idx]
+                    ),
+                )
+        save_data(li_pred_rewards, output_dir / "rewards_predictor.npy")
+        # save_data(contx_encoder_embed, output_dir / "embeds_contx_encoder.npy")
+        # save_data(predictor_embed, output_dir / "embeds_predictor.npy")
+        # save_data(target_encoder_embed, output_dir / "embeds_target_encoder.npy")
+        with open(output_dir / "labels.txt", "a") as fp:
+            fp.write("\n".join(labels) + "\n")
+
     for i, (img, label) in enumerate(dataloader):
-        pos = torch.tensor(data.get_position_from_label(label))
+        pos = torch.tensor(get_position_datetime_from_labels(label)[0])
         img = img.to(device, non_blocking=True)
         pos = pos.to(device, non_blocking=True)
         # this would duplicate each image in the batch with all
@@ -198,28 +259,27 @@ def generate_embedding(
                 )
                 contx_enc_embed = encoder.forward(context_imgs)
                 tar_embed = forward_target(target_imgs, target_encoder)
+            li_contx_pos.append(context_poss.cpu().numpy())
+            li_target_pos.append(target_poss.cpu().numpy())
+            li_pred_rewards.append(pred_reward.cpu().numpy())
         else:
-            contx_enc_embed = encoder.forward(img)
-            tar_embed = forward_target(img, target_encoder)
+            with torch.no_grad():
+                contx_enc_embed = encoder.forward(img)
+                tar_embed = forward_target(img, target_encoder)
         contx_encoder_embed.append(contx_enc_embed.cpu().numpy())
         predictor_embed.append(pred_embed.cpu().numpy())
         target_encoder_embed.append(tar_embed.cpu().numpy())
-        li_pred_rewards.append(pred_reward.cpu().numpy())
         labels += list(label)
         if i and i % 100 == 0:
             logger.info("Processed %d/%d", i, ipe)
-            save_data(contx_encoder_embed, output_dir / "embeds_contx_encoder.npy")
-            save_data(predictor_embed, output_dir / "embeds_predictor.npy")
-            save_data(li_pred_rewards, output_dir / "rewards_predictor.npy")
-            save_data(target_encoder_embed, output_dir / "embeds_target_encoder.npy")
-            with open(output_dir / "labels.txt", "w") as fp:
-                fp.write("\n".join(labels))
-    save_data(contx_encoder_embed, output_dir / "embeds_contx_encoder.npy")
-    save_data(predictor_embed, output_dir / "embeds_predictor.npy")
-    save_data(li_pred_rewards, output_dir / "rewards_predictor.npy")
-    save_data(target_encoder_embed, output_dir / "embeds_target_encoder.npy")
-    with open(output_dir / "labels.txt", "w") as fp:
-        fp.write("\n".join(labels))
+            save_data_h5()
+            labels = []
+            contx_encoder_embed = []
+            predictor_embed = []
+            target_encoder_embed = []
+            # li_pred_rewards = [] # this is just an array of floats
+    if len(labels) > 0:
+        save_data_h5()
     logger.info("Inference complete")
 
 
@@ -232,6 +292,5 @@ if __name__ == "__main__":
         args.img_dir,
         args.output_dir,
         args.world_model,
-        args.device
+        args.device,
     )
-    
