@@ -128,7 +128,7 @@ def generate_embedding(
     img_dir = Path(img_dir)
     if not output_dir.exists():
         logger.info("Creating output directory")
-        output_dir.mkdir()
+        output_dir.mkdir(mode=0o777)
     logger.info("Loading parameters")
     with open(config_fpath, "r") as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
@@ -286,6 +286,10 @@ def generate_embedding(
             # li_pred_rewards = [] # this is just an array of floats
     if len(labels) > 0:
         save_data_h5()
+    # Change file permission
+    for f in output_dir.glob("*"):
+        if f.is_file():
+            f.chmod(0o666)
     logger.info("Inference complete")
 
 
