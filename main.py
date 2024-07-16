@@ -337,7 +337,7 @@ def dreamer_wrapper(arguments):
 def behavior_learning(arguments):
     training_complete = False
     while not training_complete:
-        prepare_dreams()
+        #prepare_dreams()
         training_complete = run_rl(arguments.fname, "train_agent")
 
 
