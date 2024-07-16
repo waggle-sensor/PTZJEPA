@@ -16,6 +16,7 @@ from torch.utils.data import DataLoader
 
 import numpy as np
 
+from source.prepare_dataset import detect_plateau
 from source.utils.logging import (
     CSVLogger,
     gpu_timer,
@@ -120,31 +121,6 @@ def change_ownership(folder):
 
         for File in files:
             os.chmod(os.path.join(subdir, File), 0o666)
-
-
-def detect_plateau(loss_values, patience=5, threshold=1e-4):
-    """
-    Detects plateauing behavior in a loss curve.
-
-    Parameters:
-        loss_values (list or numpy array): List or array containing the loss values over epochs.
-        patience (int): Number of epochs with no improvement to wait before stopping.
-        threshold (float): Threshold for the change in loss to be considered as plateauing.
-
-    Returns:
-        plateaued (bool): True if the loss has plateaued, False otherwise.
-    """
-    if len(loss_values) < patience + 1:
-        return False  # Not enough data to detect plateauing
-
-    recent_losses = loss_values[-patience:]
-    mean_loss = np.mean(recent_losses)
-    current_loss = loss_values[-1]
-
-    if np.abs(current_loss - mean_loss) < threshold:
-        return True  # Loss has plateaued
-    else:
-        return False  # Loss has not plateaued
 
 
 def ijepa_train(args, logger=None, resume_preempt=False):

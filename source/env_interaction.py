@@ -23,18 +23,28 @@ from torch.utils.data import DataLoader
 
 import numpy as np
 
+from source.prepare_dataset import (
+    collect_images,
+    collect_positions,
+    grab_image, grab_position,
+    set_random_position,
+    set_relative_position
+)
+
 from source.utils.logging import (
     CSVLogger,
     gpu_timer,
     grad_logger,
-    AverageMeter)
+    AverageMeter
+)
 
 from source.helper import (
     load_checkpoint,
     init_model,
     init_world_model,
     init_agent_model,
-    init_opt)
+    init_opt
+)
 
 from source.rl_helper import ReplayMemory, Transition
 
@@ -254,142 +264,7 @@ def control_ptz(args, params, logger=None, resume_preempt=False):
 
 
     operate_ptz(args, actions, target_encoder, transform, target_predictor, device)
-
-
-
-
     return True
-
-
-
-
-
-
-
-
-def change_ownership(folder):
-    for subdir, dirs, files in os.walk(folder):
-        os.chmod(subdir, 0o777)
-
-        for File in files:
-            os.chmod(os.path.join(subdir, File), 0o666)
-
-
-
-
-
-
-
-
-def collect_positions(positions):
-    directory=os.path.join('/persistence', 'collect_positions')
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-
-    # ct stores current time
-    ct = str(datetime.datetime.now())
-
-    afile = open(os.path.join(directory, 'positions_at_'+ct), 'wb')
-    pickle.dump(positions, afile)
-    afile.close()
-
-    change_ownership(directory)
-
-
-
-def collect_images(keepimages):
-    directory = './collected_imgs'
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-
-    files = glob.glob('./imgs/*.jpg', recursive=True)
-    for f in files:
-        try:
-            os.rename(f, os.path.join(directory, os.path.basename(f)))
-        except OSError as e:
-            print("Error: %s : %s" % (f, e.strerror))
-
-    if keepimages:
-        src='./collected_imgs'
-        dest=os.path.join('/persistence', 'collected_imgs')
-        if not os.path.exists(dest):
-            os.makedirs(dest)
-        src_files = os.listdir(src)
-        for file_name in src_files:
-            full_file_name = os.path.join(src, file_name)
-            if os.path.isfile(full_file_name):
-                shutil.copy(full_file_name, dest)
-
-
-def set_random_position(camera, args):
-    if args.camerabrand==0:
-        pan_pos = np.random.randint(0, 360)
-        tilt_pos = np.random.randint(-20, 90)
-        zoom_pos = np.random.randint(1, 2)
-    elif args.camerabrand==1:
-        pan_pos = np.random.randint(-180, 180)
-        tilt_pos = np.random.randint(-180, 180)
-        zoom_pos = np.random.randint(100, 200)
-    try:
-        if args.camerabrand==0:
-            camera.absolute_control(float(pan_pos), float(tilt_pos), float(zoom_pos))
-        elif args.camerabrand==1:
-            camera.absolute_move(float(pan_pos), float(tilt_pos), int(zoom_pos))
-    except:
-        with Plugin() as plugin:
-            plugin.publish('cannot.set.camera.random.position', str(datetime.datetime.now()))
-
-    time.sleep(1)
-
-
-
-
-
-def set_relative_position(camera, args, pan, tilt, zoom):
-    print('pan ', pan)
-    print('tilt ', tilt)
-    print('zoom ', zoom)
-    try:
-        if args.camerabrand==0:
-            camera.relative_control(pan=pan, tilt=tilt, zoom=zoom)
-        elif args.camerabrand==1:
-            camera.relative_move(rpan=pan, rtilt=tilt, rzoom=zoom)
-    except:
-        with Plugin() as plugin:
-            plugin.publish('cannot.set.camera.relative.position', str(datetime.datetime.now()))
-
-
-
-
-def grab_position(camera, args):
-    if args.camerabrand==0:
-        position = camera.requesting_cameras_position_information()
-    elif args.camerabrand==1:
-        position = camera.get_ptz()
-
-    pos_str = str(position[0]) + ',' + str(position[1]) + ',' + str(position[2]) + ' '
-
-    return pos_str
-
-
-
-
-def grab_image(camera, args):
-    if args.camerabrand==0:
-        position = camera.requesting_cameras_position_information()
-    elif args.camerabrand==1:
-        position = camera.get_ptz()
-
-    pos_str = str(position[0]) + ',' + str(position[1]) + ',' + str(position[2]) + ' '
-    # ct stores current time
-    ct = str(datetime.datetime.now())
-    try:
-        camera.snap_shot('./imgs/' + pos_str + ct + '.jpg')
-    except:
-        with Plugin() as plugin:
-            plugin.publish('cannot.capture.image.from.camera', str(datetime.datetime.now()))
-
-
 
 
 def get_last_image(directory):
@@ -551,20 +426,6 @@ def operate_ptz(args, actions, target_encoder, transform, target_predictor, devi
 
         if args.trackpositions:
             collect_positions(positions)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 def run(args, fname, mode):
