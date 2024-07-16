@@ -2,12 +2,9 @@
 
 import time
 import datetime
-import pickle
 import os
-import glob
 import shutil
 import random
-import copy
 import logging
 import yaml
 import pprint
@@ -19,7 +16,6 @@ from PIL import Image
 
 from waggle.plugin import Plugin
 
-from torch.utils.data import DataLoader
 
 import numpy as np
 
@@ -31,36 +27,27 @@ from source.prepare_dataset import (
     set_relative_position
 )
 
-from source.utils.logging import (
-    CSVLogger,
-    gpu_timer,
-    grad_logger,
-    AverageMeter
-)
 
 from source.helper import (
     load_checkpoint,
-    init_model,
     init_world_model,
-    init_agent_model,
-    init_opt
+    init_agent_model
 )
 
-from source.rl_helper import ReplayMemory, Transition
 
 from source.transforms import make_transforms
 
 #from source.datasets.ptz_dataset import PTZImageDataset
-from source.datasets.dreams_dataset import DreamDataset
 
 # --
 #log_timings = True
 log_freq = 10
 checkpoint_freq = 50000000000000
 # --
+logger = logging.getLogger(__name__)
 
 
-def control_ptz(args, params, logger=None, resume_preempt=False):
+def control_ptz(args, params, resume_preempt=False):
     # ----------------------------------------------------------------------- #
     #  PASSED IN PARAMS FROM CONFIG FILE
     # ----------------------------------------------------------------------- #
@@ -290,8 +277,6 @@ def get_last_image(directory):
     return Image.open(last_imagepath), torch.tensor(last_position)
 
 
-
-
 def operate_ptz(args, actions, target_encoder, transform, target_predictor, device):
     if args.camerabrand==0:
         print('Importing Hanwha')
@@ -429,8 +414,6 @@ def operate_ptz(args, actions, target_encoder, transform, target_predictor, devi
 
 
 def run(args, fname, mode):
-    logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger(__name__)
 
     logger.info('called-params %s', fname)
 
@@ -444,6 +427,6 @@ def run(args, fname, mode):
         pp.pprint(params)
 
     if mode=='navigate_env':
-        return control_ptz(args, params, logger=logger)
+        return control_ptz(args, params)
     else:
         raise ValueError(f"Unexpected mode {mode}")
