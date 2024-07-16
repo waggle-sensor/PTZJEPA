@@ -39,9 +39,11 @@ from source.datasets.dreams_dataset import DreamDataset
 log_freq = 10
 checkpoint_freq = 50000000000000
 # --
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
-def agent_model(args, logger=None, resume_preempt=False):
+def agent_model(args, resume_preempt=False):
     # ----------------------------------------------------------------------- #
     #  PASSED IN PARAMS FROM CONFIG FILE
     # ----------------------------------------------------------------------- #
@@ -432,24 +434,28 @@ def agent_model(args, logger=None, resume_preempt=False):
         csv_logger.log(epoch + 1, itr, loss, lr, wd, etime)
         #csv_logger.log(epoch + 1, itr, loss, etime)
         if (itr % log_freq == 0) or np.isnan(loss) or np.isinf(loss):
-            logger.info('[%d, %5d] loss: %.3f '
-                        '[wd: %.2e] [lr: %.2e] '
-                        '[mem: %.2e] '
-                        '(%.1f ms)'
-                        % (epoch + 1, itr,
-                           loss_meter.avg,
-                           _new_wd,
-                           _new_lr,
-                           torch.cuda.max_memory_allocated() / 1024.**2,
-                           time_meter.avg))
+            logger.info(
+                '[%d, %5d] loss: %.3f '
+                '[wd: %.2e] [lr: %.2e] '
+                '[mem: %.2e] '
+                '(%.1f ms)',
+                epoch + 1, itr,
+                loss_meter.avg,
+                _new_wd,
+                _new_lr,
+                torch.cuda.max_memory_allocated() / 1024.**2,
+                time_meter.avg
+            )
 
             if grad_stats is not None:
-                logger.info('[%d, %5d] grad_stats: [%.2e %.2e] (%.2e, %.2e)'
-                            % (epoch + 1, itr,
-                               grad_stats.first_layer,
-                               grad_stats.last_layer,
-                               grad_stats.min,
-                               grad_stats.max))
+                logger.info(
+                    '[%d, %5d] grad_stats: [%.2e %.2e] (%.2e, %.2e)',
+                    epoch + 1, itr,
+                    grad_stats.first_layer,
+                    grad_stats.last_layer,
+                    grad_stats.min,
+                    grad_stats.max
+                )
 
 
 
@@ -477,16 +483,6 @@ def agent_model(args, logger=None, resume_preempt=False):
             return True  # Loss has plateaued
         else:
             return False  # Loss has not plateaued
-
-
-
-
-
-
-
-
-
-
 
 
     # -- TRAINING LOOP
@@ -555,30 +551,8 @@ def agent_model(args, logger=None, resume_preempt=False):
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 def run(fname, mode):
-    logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger(__name__)
-    logger.setLevel(logging.INFO)
+    # logging.basicConfig(level=logging.INFO)
 
     logger.info('called-params %s', fname)
 
@@ -592,6 +566,6 @@ def run(fname, mode):
         pp.pprint(params)
 
     if mode=='train_agent':
-        return agent_model(params, logger=logger)
+        return agent_model(params)
     else:
         raise ValueError(f"Unexpected mode {mode}")
