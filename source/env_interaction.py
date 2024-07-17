@@ -12,7 +12,7 @@ import torch
 import torch.nn.functional as F
 #import torch.nn.SmoothL1Loss as S1L
 
-from PIL import Image 
+from PIL import Image
 
 from waggle.plugin import Plugin
 
@@ -24,7 +24,9 @@ from source.prepare_dataset import (
     collect_positions,
     grab_image, grab_position,
     set_random_position,
-    set_relative_position
+    set_relative_position,
+    get_dirs,
+    verify_image
 )
 
 
@@ -326,27 +328,28 @@ def operate_ptz(args, actions, target_encoder, transform, target_predictor, devi
         plugin.publish('starting.new.image.collection.the.number.of.iterations.is', iterations)
         plugin.publish('the.number.of.images.recorded.by.iteration.is', number_of_commands)
 
-    directory = './collected_imgs'
-    if os.path.exists(directory):
-        shutil.rmtree(directory)
+    coll_dir, tmp_dir, persis_dir = get_dirs()
+    if coll_dir.exists():
+        shutil.rmtree(coll_dir)
 
-    if os.path.exists('./imgs'):
-        shutil.rmtree('./imgs')
+    if tmp_dir.exists():
+        shutil.rmtree(tmp_dir)
 
     for iteration in range(iterations):
         with Plugin() as plugin:
             plugin.publish('iteration.number', iteration)
 
-        os.mkdir('./imgs')
+        tmp_dir.mkdir(exist_ok=True)
         PAN = np.random.choice(pan_values, number_of_commands)
         TILT = np.random.choice(tilt_values, number_of_commands)
         ZOOM = np.random.choice(zoom_values, number_of_commands)
+        # Get first random image as a starting point
         set_random_position(camera=Camera1, args=args)
         grab_image(camera=Camera1, args=args)
 
         positions = [grab_position(camera=Camera1, args=args)]
         for command in range(number_of_commands):
-            image, position = get_last_image('./imgs')
+            image, position = get_last_image(tmp_dir)
             image = transform(image)
             image = image.unsqueeze(0)
             position_batch = position.unsqueeze(0).to(device)
@@ -391,7 +394,18 @@ def operate_ptz(args, actions, target_encoder, transform, target_predictor, devi
                                   pan=pan,
                                   tilt=tilt,
                                   zoom=zoom)
-            grab_image(camera=Camera1, args=args)
+            # Make sure the image is captured before moving on
+            count = 0
+            while count < 10:
+                img_path = grab_image(camera=Camera1, args=args)
+                if img_path and verify_image(img_path):
+                    break
+                count += 1
+            if count == 10 and not img_path:
+                logger.warning("Failed to grab image after 10 attempts, skip this command")
+                if os.path.exists(img_path):
+                    os.remove(img_path)
+                continue
             positions.append(grab_position(camera=Camera1, args=args))
         #for (pan, tilt, zoom) in zip(PAN, TILT, ZOOM):
             #try:
@@ -407,7 +421,7 @@ def operate_ptz(args, actions, target_encoder, transform, target_predictor, devi
 
         #publish_images()
         collect_images(args.keepimages)
-        os.rmdir('./imgs')
+        shutil.rmtree(tmp_dir)
 
         if args.trackpositions:
             collect_positions(positions)

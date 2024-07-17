@@ -21,6 +21,8 @@ tmp_dir.mkdir(exist_ok=True, mode=0o777)
 persis_dir = Path("/persistence")
 persis_dir.mkdir(exist_ok=True, mode=0o777)
 
+def get_dirs():
+    return coll_dir, tmp_dir, persis_dir
 
 # ---------------
 # Prepare images
@@ -34,14 +36,17 @@ def grab_image(camera, args):
     pos_str = str(position[0]) + "," + str(position[1]) + "," + str(position[2]) + " "
     # ct stores current time
     ct = str(datetime.datetime.now())
+    img_path = str(tmp_dir / (ct + ".jpg"))
     try:
-        camera.snap_shot(str(tmp_dir / (pos_str + ct + ".jpg")))
+        camera.snap_shot(img_path)
     # TODO: need to check what kind of exception is raised
     except:
         with Plugin() as plugin:
             plugin.publish(
                 "cannot.capture.image.from.camera", str(datetime.datetime.now())
             )
+        return None
+    return img_path
 
 
 def tar_images(output_filename, folder_to_archive):
@@ -251,7 +256,7 @@ def operate_ptz(args):
                 args.password,
                 timestamp=datetime.datetime.now(),
             )
-
+    # reset the camera to its original position
     if args.camerabrand == 0:
         Camera1.absolute_control(1, 1, 1)
         time.sleep(1)
@@ -261,18 +266,18 @@ def operate_ptz(args):
 
     pan_modulation = 2
     tilt_modulation = 2
-    zoom_modulation = 1
+    zoom_modulation = 1 if args.camerabrand == 0 else 1000
+    # if args.camerabrand==0:
+    #     zoom_modulation = 1
+    # elif args.camerabrand==1:
+    #     zoom_modulation = 1000
 
     pan_values = np.array([-5, -1, -0.1, 0, 0.1, 1, 5])
-    pan_values = pan_values * pan_modulation
+    pan_values *= pan_modulation
     tilt_values = np.array([-5, -1, -0.1, 0, 0.1, 1, 5])
-    tilt_values = tilt_values * tilt_modulation
-    if args.camerabrand == 0:
-        zoom_values = np.array([-0.2, -0.1, 0, 0.1, 0.2])
-    elif args.camerabrand == 1:
-        zoom_values = 100 * np.array([-2, -1, 0, 1, 2])
-
-    zoom_values = zoom_values * zoom_modulation
+    tilt_values *= tilt_modulation
+    zoom_values = np.array([-0.2, -0.1, 0, 0.1, 0.2])
+    zoom_values *= zoom_modulation
 
     with Plugin() as plugin:
         plugin.publish(
