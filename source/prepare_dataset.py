@@ -106,6 +106,9 @@ def collect_images(keepimages):
         if keepimages:
             dest = persis_dir / "collected_imgs"
             dest.mkdir(exist_ok=True, mode=0o777)
+            # check mode of the directory
+            if dest.stat().st_mode != 0o777:
+                os.chmod(dest, 0o777)
             for fp in coll_dir.glob("*.jpg"):
                 try:
                     dest_fp = shutil.copy(fp, dest)
