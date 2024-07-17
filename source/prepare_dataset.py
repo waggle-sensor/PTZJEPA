@@ -33,10 +33,10 @@ def grab_image(camera, args):
     elif args.camerabrand == 1:
         position = camera.get_ptz()
 
-    pos_str = str(position[0]) + "," + str(position[1]) + "," + str(position[2]) + " "
+    pos_str = ",".join([str(p) for p in position])
     # ct stores current time
-    ct = str(datetime.datetime.now())
-    img_path = str(tmp_dir / (pos_str + ct + ".jpg")).replace(' ', '_')
+    ct = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S.%f")
+    img_path = str(tmp_dir / f"{pos_str}_{ct}.jpg")
     try:
         camera.snap_shot(img_path)
     # TODO: need to check what kind of exception is raised
@@ -165,7 +165,7 @@ def grab_position(camera, args):
     elif args.camerabrand == 1:
         position = camera.get_ptz()
 
-    pos_str = ",".join(position)
+    pos_str = ",".join([str(p) for p in position])
 
     return pos_str
 
@@ -215,7 +215,7 @@ def collect_positions(positions):
 
     # ct stores current time
     # ct = str(datetime.datetime.now())
-    ct = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+    ct = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S.%f")
     with open(directory / f"positions_at_{ct}.txt", "w") as fh:
         fh.write("\n".join(positions))
 
