@@ -162,7 +162,7 @@ def grab_position(camera, args):
     elif args.camerabrand == 1:
         position = camera.get_ptz()
 
-    pos_str = str(position[0]) + "," + str(position[1]) + "," + str(position[2]) + " "
+    pos_str = ",".join(position)
 
     return pos_str
 
@@ -207,15 +207,14 @@ def set_random_position(camera, args):
 
 
 def collect_positions(positions):
-    directory = persis_dir / "collect_positions"
+    directory = persis_dir / "collected_positions"
     directory.mkdir(exist_ok=True, mode=0o777, parents=True)
 
     # ct stores current time
-    ct = str(datetime.datetime.now())
-
-    afile = open(directory / ("positions_at_" + ct), "wb")
-    pickle.dump(positions, afile)
-    afile.close()
+    # ct = str(datetime.datetime.now())
+    ct = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+    with open(directory / f"positions_at_{ct}.txt", "w") as fh:
+        fh.write("\n".join(positions))
 
     change_ownership(directory)
 
