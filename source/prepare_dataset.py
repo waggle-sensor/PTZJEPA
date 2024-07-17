@@ -36,7 +36,7 @@ def grab_image(camera, args):
     pos_str = str(position[0]) + "," + str(position[1]) + "," + str(position[2]) + " "
     # ct stores current time
     ct = str(datetime.datetime.now())
-    img_path = str(tmp_dir / (ct + ".jpg"))
+    img_path = str(tmp_dir / (pos_str + ct + ".jpg"))
     try:
         camera.snap_shot(img_path)
     # TODO: need to check what kind of exception is raised
