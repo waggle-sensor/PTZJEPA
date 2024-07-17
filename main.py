@@ -14,6 +14,7 @@ from source.env_interaction import run as env_inter
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 def pretraining_wrapper(arguments):
     training_complete = False
     while not training_complete:
@@ -52,14 +53,14 @@ def environment_interaction(arguments):
     logger.info("interaction_complete: %s", interaction_complete)
 
 
-def lifelong_learning(arguments): 
+def lifelong_learning(arguments):
     operate_ptz(arguments)
     while True:
         prepare_images()
-        training_complete = run_jepa(arguments.fname, 'world_model')
-        training_complete = run_jepa(arguments.fname, 'dreamer')
-        training_complete = run_rl(arguments.fname, 'train_agent')
-        interaction_complete = env_inter(arguments, arguments.fname, 'navigate_env')
+        training_complete = run_jepa(arguments.fname, "world_model")
+        training_complete = run_jepa(arguments.fname, "dreamer")
+        training_complete = run_rl(arguments.fname, "train_agent")
+        interaction_complete = env_inter(arguments, arguments.fname, "navigate_env")
 
 
 def get_argparser():
@@ -71,8 +72,12 @@ def get_argparser():
         action="store_true",
         help="Keep collected images in persistent folder for later use",
     )
-    parser.add_argument("-tp", "--trackpositions", action="store_true", 
-                        help="Track camera positions storing them in persistent folder for later analysis")
+    parser.add_argument(
+        "-tp",
+        "--trackpositions",
+        action="store_true",
+        help="Track camera positions storing them in persistent folder for later analysis",
+    )
     parser.add_argument(
         "-si",
         "--storedimages",
@@ -147,7 +152,6 @@ def get_argparser():
 
 
 def main():
-    
     args = get_argparser().parse_args()
     os.environ["CUDA_VISIBLE_DEVICES"] = str(0)
 

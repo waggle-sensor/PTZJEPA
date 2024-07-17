@@ -202,14 +202,13 @@ def set_random_position(camera, args):
 
 
 def collect_positions(positions):
-    directory = os.path.join("/persistence", "collect_positions")
-    if not os.path.exists(directory):
-        os.makedirs(directory)
+    directory = persis_dir / "collect_positions"
+    directory.mkdir(exist_ok=True, mode=0o777, parents=True)
 
     # ct stores current time
     ct = str(datetime.datetime.now())
 
-    afile = open(os.path.join(directory, "positions_at_" + ct), "wb")
+    afile = open(directory / ("positions_at_" + ct), "wb")
     pickle.dump(positions, afile)
     afile.close()
 
