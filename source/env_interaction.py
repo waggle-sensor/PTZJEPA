@@ -1,5 +1,6 @@
 # this python script runs jepa
 
+from pathlib import Path
 import time
 import datetime
 import os
@@ -19,6 +20,7 @@ from waggle.plugin import Plugin
 
 import numpy as np
 
+from source.datasets.ptz_dataset import get_position_datetime_from_labels
 from source.prepare_dataset import (
     collect_images,
     collect_positions,
@@ -257,26 +259,11 @@ def control_ptz(args, params, resume_preempt=False):
 
 
 def get_last_image(directory):
-    last_timestamp=0
-    last_imagepath=' '
-    last_position=[0.0, 0.0, 0.0]
-    for filename in os.listdir(directory):
-        f = os.path.join(directory, filename)
-        # checking if it is a file
-        if os.path.isfile(f):
-            position=f.split('_')[0].split('/')[-1].split(',')
-            date=f.split('_')[-2].split('-')
-            time=f.split('_')[-1].split('.')[0].split(':')
-            year, month, day = int(date[0]), int(date[1]), int(date[2])
-            hour, minute, second = int(time[0]), int(time[1]), int(time[2])
-            pan, tilt, zoom = float(position[0]), float(position[1]), float(position[2])
-            dt = datetime.datetime(year, month, day, hour, minute, second)
-            if last_timestamp < dt.timestamp():
-                last_timestamp = dt.timestamp()
-                last_imagepath = f
-                last_position = [pan, tilt, zoom]
-
-    return Image.open(last_imagepath), torch.tensor(last_position)
+    directory = Path(directory)
+    all_files = [fp.stem for fp in directory.glob('*.jpg')]
+    arr_pos, arr_datetime = get_position_datetime_from_labels(all_files)
+    idx = np.argmax(arr_datetime)
+    return Image.open(directory / f"{all_files[idx]}.jpg"), torch.tensor(arr_pos[idx])
 
 
 def operate_ptz(args, actions, target_encoder, transform, target_predictor, device):
