@@ -339,7 +339,7 @@ def operate_ptz(args, actions, target_encoder, transform, target_predictor, devi
             image, position = get_last_image(tmp_dir)
             image = transform(image)
             image = image.unsqueeze(0)
-            position_batch = position.unsqueeze(0).to(device)
+            position_batch = position.unsqueeze(0).to(device, dtype=torch.float32)
             state_batch = target_encoder(image.to(device))
             with torch.no_grad():
                 #next_state_values = target_predictor(state_batch, position_batch)
