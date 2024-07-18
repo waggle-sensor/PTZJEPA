@@ -37,6 +37,8 @@ from source.datasets.ptz_dataset import PTZImageDataset
 log_freq = 10
 checkpoint_freq = 50000000000000
 # --
+# logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 def get_random_position(camera_brand):
@@ -123,7 +125,7 @@ def change_ownership(folder):
             os.chmod(os.path.join(subdir, File), 0o666)
 
 
-def ijepa_train(args, logger=None, resume_preempt=False):
+def ijepa_train(args, resume_preempt=False):
     # ----------------------------------------------------------------------- #
     #  PASSED IN PARAMS FROM CONFIG FILE
     # ----------------------------------------------------------------------- #
@@ -476,7 +478,7 @@ def ijepa_train(args, logger=None, resume_preempt=False):
 
 
 
-def world_model(args, logger=None, resume_preempt=False):
+def world_model(args, resume_preempt=False):
     # ----------------------------------------------------------------------- #
     #  PASSED IN PARAMS FROM CONFIG FILE
     # ----------------------------------------------------------------------- #
@@ -876,7 +878,7 @@ def world_model(args, logger=None, resume_preempt=False):
 
 
 
-def dreamer(args, logger=None, resume_preempt=False):
+def dreamer(args, resume_preempt=False):
     # ----------------------------------------------------------------------- #
     #  PASSED IN PARAMS FROM CONFIG FILE
     # ----------------------------------------------------------------------- #
@@ -1234,8 +1236,6 @@ def dreamer(args, logger=None, resume_preempt=False):
 
 
 def run(fname, mode):
-    logging.basicConfig(level=logging.info)
-    logger = logging.getLogger(__name__)
 
     logger.info('called-params %s', fname)
 
@@ -1249,10 +1249,10 @@ def run(fname, mode):
         pp.pprint(params)
 
     if mode=='train':
-        return ijepa_train(params, logger=logger)
+        return ijepa_train(params)
     if mode=='world_model':
-        return world_model(params, logger=logger)
+        return world_model(params)
     if mode=='dreamer':
-        return dreamer(params, logger=logger)
+        return dreamer(params)
     else:
         raise ValueError(f"Unexpected mode {mode}")

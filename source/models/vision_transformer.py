@@ -195,7 +195,7 @@ class ConvEmbed(nn.Module):
     3x3 Convolution stems for ViT following ViTC models
     """
 
-    def __init__(self, channels, strides, img_size=224, in_chans=3, batch_norm=True):
+    def __init__(self, channels, strides, img_size=[224], in_chans=3, batch_norm=True):
         super().__init__()
         # Build the stems
         stem = []
