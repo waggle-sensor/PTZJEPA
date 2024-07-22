@@ -15,7 +15,6 @@ from source.prepare_dataset import get_dirs
 
 # Create a logger
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 timefmt = "%Y-%m-%d_%H:%M:%S.%f"
 coll_dir, tmp_dir, persis_dir = get_dirs()
 wm_dir = persis_dir / "world_models"
@@ -26,6 +25,11 @@ ag_dir = persis_dir / "agents"
 # wm_00_20 (world model, 00 th generation, 20 th model)
 # ag_12_53 (agent, 12 th generation, 53 th model)
 
+# Concept
+# 1. epoch: image set for current training (eg. 20 movement 30 iteration = 600)
+# 2. restart: model restarts from the previous plateau, multiple epochs inside plateau
+# 3. generation: model restarted after N times and it was dropped. A new model was born
+# 4. model number: random seed or a id for configuration
 
 def initialize_model_info(model_name: str):
     """
@@ -62,6 +66,7 @@ def save_model_info(
     parent_model_name: Union[str, None],
     start_time: Timestamp,
     end_time: Timestamp,
+    num_epoch: int,
 ):
     """Save model information to a YAML file.
 
@@ -117,12 +122,14 @@ def save_model_info(
             parent_model_parent_dir / parent_model_name / "model_info.yaml", "r"
         ) as f:
             parent_info = yaml.safe_load(f)
+            # Last key is the latest restart iteration
             parent_restart_iter = int(list(parent_info.keys())[-1].split("_")[1])
     info_dict[f"restart_{restart_iter:0>2}"] = {
         "parent_model": parent_model_name,
         "parent_model_restart": parent_restart_iter,
         "train_start": start_time.strftime(timefmt),
         "train_end": end_time.strftime(timefmt),
+        "num_epoch": num_epoch,
         "num_images": num,
         "image_start": np.min(datetimes).strftime(timefmt),
         "image_end": np.max(datetimes).strftime(timefmt),
