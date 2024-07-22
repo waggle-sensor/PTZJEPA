@@ -463,21 +463,6 @@ def ijepa_train(args, resume_preempt=False):
     return True
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 def world_model(args, resume_preempt=False):
     # ----------------------------------------------------------------------- #
     #  PASSED IN PARAMS FROM CONFIG FILE
@@ -875,7 +860,6 @@ def world_model(args, resume_preempt=False):
         shutil.rmtree(PATH)
 
     return True
-
 
 
 def dreamer(args, resume_preempt=False):
