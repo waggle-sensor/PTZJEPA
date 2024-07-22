@@ -14,15 +14,22 @@ from waggle.plugin import Plugin
 
 logger = logging.getLogger(__name__)
 
-coll_dir = Path("/collected_imgs")
-coll_dir.mkdir(exist_ok=True, mode=0o777)
-tmp_dir = Path("/imgs")
-tmp_dir.mkdir(exist_ok=True, mode=0o777)
-persis_dir = Path("/persistence")
-persis_dir.mkdir(exist_ok=True, mode=0o777)
+try:
+    coll_dir = Path("/collected_imgs")
+    coll_dir.mkdir(exist_ok=True, mode=0o777)
+    tmp_dir = Path("/imgs")
+    tmp_dir.mkdir(exist_ok=True, mode=0o777)
+    persis_dir = Path("/persistence")
+    persis_dir.mkdir(exist_ok=True, mode=0o777)
+except OSError:
+    logger.warning(
+        "Could not create directories, will use default paths and the code might break"
+    )
+
 
 def get_dirs():
     return coll_dir, tmp_dir, persis_dir
+
 
 # ---------------
 # Prepare images
@@ -147,7 +154,7 @@ def prepare_images(label_dir="./"):
             fp.unlink()
     df = pd.DataFrame(labels)
     label_path = Path(label_dir, "labels.txt")
-    df.to_csv(label_path, header=None, index=False)
+    df.to_csv(label_path, header=False, index=False)
     os.chmod(label_path, 0o666)  # RW for all
     logger.info("Number of labels: %d", df.size)
 
