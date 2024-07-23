@@ -1,8 +1,6 @@
 # this file includes functionality to track the progress of the lifelong
 # learning process.
 import logging
-import os
-from pathlib import Path
 from typing import Union
 
 import numpy as np
@@ -15,7 +13,7 @@ from source.prepare_dataset import get_dirs
 
 logger = logging.getLogger(__name__)
 timefmt = "%Y-%m-%d_%H:%M:%S.%f"
-coll_dir, tmp_dir, persis_dir = get_dirs()
+persis_dir, coll_dir, tmp_dir = get_dirs()
 wm_dir = persis_dir / "world_models"
 ag_dir = persis_dir / "agents"
 
@@ -32,7 +30,7 @@ ag_dir = persis_dir / "agents"
 # random images -> [WM -> dreams -> agent] -> new images -> [WM -> dreams -> agent] -> new images ...
 
 
-def initialize_model_info(model_name: str):
+def initialize_model_info(model_name: str, overwrite: bool = False):
     """Initializes the model information and saves it to a YAML file.
 
     Args:
@@ -53,7 +51,10 @@ def initialize_model_info(model_name: str):
         "model_type": model_type,
         "model_gen": model_gen,
         "model_id": model_id,
+        "num_restart": -1,
     }
+    if (model_dir / "model_info.yaml").exists() and not overwrite:
+        raise RuntimeError(f"Model info already exists at {model_dir}")
     with open(model_dir / "model_info.yaml", "w") as f:
         yaml.dump(info_dict, f)
     return model_dir
@@ -100,14 +101,18 @@ def save_model_info(
         info_dict = yaml.safe_load(f)
     # Check that the model info matches with the model name
     assert (
+        info_dict["model_name"] == model_name
+    ), f"Model name does not match with the model info! {model_name} != {info_dict['model_name']}"
+    assert (
         info_dict["model_gen"] == model_gen
-        and info_dict["model_id"] == model_id
-        and info_dict["model_type"] == model_type
-    ), "Model name does not match with the model info!"
-    if "restart_00" in info_dict.keys():
-        restart_iter = int(list(info_dict.keys())[-1].split("_")[1]) + 1
-    else:
-        restart_iter = 0
+    ), f"Model generation does not match with the model info! {model_gen} != {info_dict['model_gen']}"
+    assert (
+        info_dict["model_id"] == model_id
+    ), f"Model id does not match with the model info! {model_id} != {info_dict['model_id']}"
+    assert (
+        info_dict["model_type"] == model_type
+    ), f"Model type does not match with the model info! {model_type} != {info_dict['model_type']}"
+    restart_iter = info_dict["num_restart"] + 1
     # Sort by time will know who is the parent and find out the flow
     # this method won't consider more than one instance running at the same time
     # infer parent model restart iteration
@@ -128,16 +133,26 @@ def save_model_info(
         ) as f:
             parent_info = yaml.safe_load(f)
             # Last key is the latest restart iteration
-            parent_restart_iter = int(list(parent_info.keys())[-1].split("_")[1])
+            # parent_restart_iter = int(list(parent_info.keys())[-1].split("_")[1])
+            parent_restart_iter = parent_info["num_restart"]
     info_dict[f"restart_{restart_iter:0>2}"] = {
         "parent_model": parent_model_name,
         "parent_model_restart": parent_restart_iter,
-        "train_start": start_time.strftime(timefmt),
-        "train_end": end_time.strftime(timefmt),
-        "num_epoch": num_epoch,
-        "num_images": num,
-        "image_start": np.min(datetimes).strftime(timefmt),
-        "image_end": np.max(datetimes).strftime(timefmt),
+        "train": {
+            "start_end": [
+                start_time.strftime(timefmt),
+                end_time.strftime(timefmt),
+            ],
+            "num_epochs": num_epoch,
+        },
+        "images": {
+            "start_end": [
+                np.min(datetimes).strftime(timefmt),
+                np.max(datetimes).strftime(timefmt),
+            ],
+            "num_images": num,
+        },
     }
+    info_dict["num_restart"] += 1
     with open(info_fpath, "w") as f:
         yaml.dump(info_dict, f)
