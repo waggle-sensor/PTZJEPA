@@ -1,6 +1,7 @@
 import logging
 from pathlib import Path
 import pickle
+from typing import Union
 import numpy as np
 import time
 import datetime
@@ -15,11 +16,12 @@ from waggle.plugin import Plugin
 logger = logging.getLogger(__name__)
 
 try:
+    # ! Note this assumes the code is running in a container
     coll_dir = Path("/collected_imgs")
-    coll_dir.mkdir(exist_ok=True, mode=0o777)
     tmp_dir = Path("/imgs")
-    tmp_dir.mkdir(exist_ok=True, mode=0o777)
     persis_dir = Path("/persistence")
+    coll_dir.mkdir(exist_ok=True, mode=0o777)
+    tmp_dir.mkdir(exist_ok=True, mode=0o777)
     persis_dir.mkdir(exist_ok=True, mode=0o777)
 except OSError:
     logger.warning(
@@ -28,7 +30,15 @@ except OSError:
 
 
 def get_dirs():
-    return coll_dir, tmp_dir, persis_dir
+    """
+    Get the directories for persistent storage, collection, and temporary files.
+
+    Returns:
+        persis_dir (Path): The directory for persistent storage.
+        coll_dir (Path): The directory for collection.
+        tmp_dir (Path): The directory for temporary files.
+    """
+    return persis_dir, coll_dir, tmp_dir
 
 
 # ---------------

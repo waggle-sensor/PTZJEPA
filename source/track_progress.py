@@ -13,7 +13,6 @@ from source.datasets.ptz_dataset import get_position_datetime_from_labels
 from source.prepare_dataset import get_dirs
 
 
-# Create a logger
 logger = logging.getLogger(__name__)
 timefmt = "%Y-%m-%d_%H:%M:%S.%f"
 coll_dir, tmp_dir, persis_dir = get_dirs()
@@ -30,10 +29,11 @@ ag_dir = persis_dir / "agents"
 # 2. restart: model restarts from the previous plateau, multiple epochs inside plateau
 # 3. generation: model restarted after N times and it was dropped. A new model was born
 # 4. model number: random seed or a id for configuration
+# random images -> [WM -> dreams -> agent] -> new images -> [WM -> dreams -> agent] -> new images ...
+
 
 def initialize_model_info(model_name: str):
-    """
-    Initializes the model information and saves it to a YAML file.
+    """Initializes the model information and saves it to a YAML file.
 
     Args:
         model_name (str): The name of the model.
@@ -42,6 +42,8 @@ def initialize_model_info(model_name: str):
         pathlib.Path: The path to the model directory.
     """
     model_type, model_gen, model_id = model_name.split("_")
+    model_gen = int(model_gen)
+    model_id = int(model_id)
     model_parent_dir = wm_dir if model_type == "wm" else ag_dir
     model_dir = model_parent_dir / model_name
     model_dir.mkdir(parents=True, exist_ok=True)
@@ -75,6 +77,7 @@ def save_model_info(
         parent_model_name (Union[str, None]): The name of the parent model. None if it's the first run.
         start_time (Timestamp): The start time of the training.
         end_time (Timestamp): The end time of the training.
+        num_epoch (int): The number of epochs used to train model to reach plateau.
     Raises:
         ValueError: if this is not the first time model is run (i.e., the parent model name is None
                     and the restart iteration is not 0.)
@@ -83,6 +86,8 @@ def save_model_info(
     # Model name is the full model name
     # model_xx_yy
     model_type, model_gen, model_id = model_name.split("_")
+    model_gen = int(model_gen)
+    model_id = int(model_id)
     # model_type = "world_model" if is_world_model else "agent"
     model_parent_dir = wm_dir if model_type == "wm" else ag_dir
     # model_dir = model_parent_dir / model_name
