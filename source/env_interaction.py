@@ -315,7 +315,7 @@ def operate_ptz(args, actions, target_encoder, transform, target_predictor, devi
         plugin.publish('starting.new.image.collection.the.number.of.iterations.is', iterations)
         plugin.publish('the.number.of.images.recorded.by.iteration.is', number_of_commands)
 
-    coll_dir, tmp_dir, persis_dir = get_dirs()
+    persis_dir, coll_dir, tmp_dir = get_dirs()
     if coll_dir.exists():
         shutil.rmtree(coll_dir)
 
