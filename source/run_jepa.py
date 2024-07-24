@@ -540,6 +540,9 @@ def world_model(args, resume_preempt=False):
         model_name = f'wm_00_{model_id:0>2}'
         initialize_model_info(model_name)
         parent_model_name = None
+        with open(prog_file, "a") as f:
+            # to prevent overwrite any other previous training
+            f.write("Start lifelong learning @ " + datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S.%f') + "\n")
     else:
         # read the last line
         with open(prog_file, 'rb') as f:
