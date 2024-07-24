@@ -41,7 +41,6 @@ log_freq = 10
 checkpoint_freq = 50000000000000
 # --
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 
 def agent_model(args, resume_preempt=False):
