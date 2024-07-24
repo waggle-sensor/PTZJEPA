@@ -3,6 +3,7 @@
 import datetime
 import gc
 import os
+from pathlib import Path
 import shutil
 import random
 import copy
@@ -1021,27 +1022,40 @@ def dreamer(args, resume_preempt=False):
         os.makedirs(folder)
         change_ownership(folder)
 
-    dream_ID='dream_'+str(torch.randint(memory_dreams, (1,)).item())
-    if not os.path.exists(os.path.join(dream_folder, dream_ID)):
-        os.makedirs(os.path.join(dream_folder, dream_ID))
-        change_ownership(os.path.join(folder, dream_ID))
+    # dream id will correspond to the restart id for the world model
+    # the number of images will be fixed by the input parameters
+    # dream_{restart_id}_{dream_sequence}
+    models = [subdir.name for subdir in Path(folder).iterdir() if subdir.is_dir()]
+    model_name = random.sample(models, 1)[0]
+    persis_dir, coll_dir, tmp_dir = get_dirs()
+    wm_dir = persis_dir / "world_models"
+    ag_dir = persis_dir / "agents"
+    model_dir = wm_dir / model_name
+    with open(model_dir / "model_info.yaml", 'r') as f:
+        info_dict = yaml.safe_load(f)
+    restart_iter = info_dict["num_restart"]
+    # start the dream sequence with 0
+    # dream_seq = len(list(model_dir.glob(f"dream_{restart_iter:0>2}_*")))
+    # dream_name = f"dream_{restart_iter:0>2}_{dream_seq:0>2}"
+    dream_name = f"dream_{restart_iter:0>2}"
+    dream_dir = model_dir / dream_name
+    dream_dir.mkdir(mode=0o777, exist_ok=True)
+    dream_folder = str(dream_dir)
+    # dream_ID='dream_'+str(torch.randint(memory_dreams, (1,)).item())
+    # if not os.path.exists(os.path.join(dream_folder, dream_ID)):
+    #     os.makedirs(os.path.join(dream_folder, dream_ID))
+    #     change_ownership(os.path.join(folder, dream_ID))
 
-    models=[]
-    for subdir in os.listdir(folder):
-        models.append(subdir)
-    model_ID=random.sample(models,1)[0]
-
-    dump = os.path.join(folder, model_ID, 'params-ijepa.yaml')
-    with open(dump, 'w') as f:
-        yaml.dump(args, f)
+    # dump = os.path.join(folder, model_ID, 'params-ijepa.yaml')
+    # with open(dump, 'w') as f:
+    #     yaml.dump(args, f)
     # ----------------------------------------------------------------------- #
     
-
     # -- log/checkpointing paths
-    log_file = os.path.join(folder, model_ID, f'{tag}.csv')
-    save_path = os.path.join(folder, model_ID, f'{tag}' + '-ep{epoch}.pth.tar')
-    latest_path = os.path.join(folder, model_ID, f'{tag}-latest.pth.tar')
-    dream_save_path = os.path.join(dream_folder, dream_ID, f'{tag}' + '-dream{dream}.pth.tar')
+    log_file = os.path.join(folder, model_name, f'{tag}.csv')
+    save_path = os.path.join(folder, model_name, f'{tag}' + '-ep{epoch}.pth.tar')
+    latest_path = os.path.join(folder, model_name, f'{tag}-latest.pth.tar')
+    dream_save_path = os.path.join(dream_folder, f'{tag}' + '-dream{dream}.pth.tar')
     load_path = None
     if load_model:
         load_path = os.path.join(folder, r_file) if r_file is not None else latest_path
@@ -1086,7 +1100,7 @@ def dreamer(args, resume_preempt=False):
 
 
     # -- init data-loader
-    data = PTZImageDataset('/collected_imgs', transform=transform)
+    data = PTZImageDataset(coll_dir, transform=transform)
     dataloader = DataLoader(data, batch_size=batch_size, shuffle=True)
     ipe = len(dataloader)
 
@@ -1166,6 +1180,7 @@ def dreamer(args, resume_preempt=False):
         torch.cat(action_sequences, out=aux)
         action_sequences=aux
 
+        num_past_dreams = len(os.listdir(dream_dir))
         for idx in range(B):
             dream_dict = {
                 'state_sequence': state_sequences[:,idx],
@@ -1173,7 +1188,8 @@ def dreamer(args, resume_preempt=False):
                 'reward_sequence': reward_sequences[:,idx],
                 'action_sequence': action_sequences[:,idx]
             }
-            save_dreams(np.random.randint(number_of_dreams), dream_dict)
+            # save_dreams(np.random.randint(number_of_dreams), dream_dict)
+            save_dreams(num_past_dreams + idx, dream_dict)
 
         change_ownership(dream_folder)
 
