@@ -1,11 +1,11 @@
 # this file includes functionality to track the progress of the lifelong
 # learning process.
+import datetime
 import logging
 from typing import Union
+import yaml
 
 import numpy as np
-from pandas import Timestamp
-import yaml
 
 from source.datasets.ptz_dataset import get_position_datetime_from_labels
 from source.prepare_dataset import get_dirs
@@ -62,13 +62,13 @@ def initialize_model_info(model_name: str, overwrite: bool = False):
 
 # Need to save world model details
 # including:
-# model id, model restart iteration, training data timestamp, number of images
+# model id, model restart iteration, training data timestamp, number of images, training epochs
 # Time is in "%Y-%m-%d_%H:%M:%S.%f" format
 def save_model_info(
     model_name: str,
     parent_model_name: Union[str, None],
-    start_time: Timestamp,
-    end_time: Timestamp,
+    start_time: datetime.datetime,
+    end_time: datetime.datetime,
     num_epoch: int,
 ):
     """Save model information to a YAML file.
@@ -76,8 +76,8 @@ def save_model_info(
     Args:
         model_name (str): The full name of the model.
         parent_model_name (Union[str, None]): The name of the parent model. None if it's the first run.
-        start_time (Timestamp): The start time of the training.
-        end_time (Timestamp): The end time of the training.
+        start_time (datetime.datetime): The start time of the training.
+        end_time (datetime.datetime): The end time of the training.
         num_epoch (int): The number of epochs used to train model to reach plateau.
     Raises:
         ValueError: if this is not the first time model is run (i.e., the parent model name is None
@@ -156,3 +156,11 @@ def save_model_info(
     info_dict["num_restart"] += 1
     with open(info_fpath, "w") as f:
         yaml.dump(info_dict, f)
+
+
+def update_progress(current_model_name: str):
+    # last line is always the last model name
+    prog_file = persis_dir / "progress_model_names.txt"
+    with open(prog_file, "a") as f:
+        f.write(current_model_name + "\n")
+    # now update the last model name to the current model
