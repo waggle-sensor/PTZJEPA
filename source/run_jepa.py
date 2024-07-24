@@ -1,5 +1,6 @@
 # this python script runs jepa
 
+import datetime
 import gc
 import os
 import shutil
@@ -8,7 +9,6 @@ import copy
 import logging
 import yaml
 import pprint
-from typing import Iterable
 import torch
 import torch.nn.functional as F
 
@@ -16,7 +16,8 @@ from torch.utils.data import DataLoader
 
 import numpy as np
 
-from source.prepare_dataset import detect_plateau
+from source.prepare_dataset import change_ownership, detect_plateau, get_dirs
+from source.track_progress import initialize_model_info, save_model_info
 from source.utils.logging import (
     CSVLogger,
     gpu_timer,
@@ -115,14 +116,6 @@ def arrange_inputs(images, positions, device):
     target_poss = auxiliary.detach().clone()
 
     return context_imgs.to(device), context_poss.to(device), target_imgs.to(device), target_poss.to(device)
-
-
-def change_ownership(folder):
-    for subdir, dirs, files in os.walk(folder):
-        os.chmod(subdir, 0o777)
-
-        for File in files:
-            os.chmod(os.path.join(subdir, File), 0o666)
 
 
 def ijepa_train(args, resume_preempt=False):
@@ -533,26 +526,56 @@ def world_model(args, resume_preempt=False):
     # -- MEMORY
     memory_models = args['memory']['models']
 
-
-
     if not os.path.exists(folder):
         os.makedirs(folder)
         change_ownership(folder)
+    persis_dir, coll_dir, tmp_dir = get_dirs()
+    model_id = np.random.randint(memory_models)
+    torch.manual_seed(model_id)
+    wm_dir = persis_dir / "world_models"
+    dirnames = [d.name for d in wm_dir.iterdir() if d.is_dir()]
+    prog_file = persis_dir / "progress_model_names.txt"
+    if len(dirnames) == 0:
+        # the Adam model
+        model_name = f'wm_00_{model_id}'
+        initialize_model_info(model_name)
+        parent_model_name = None
+    else:
+        # read the last line
+        with open(prog_file, 'rb') as f:
+            try:  # catch OSError in case of a one line file
+                f.seek(-2, os.SEEK_END)
+                while f.read(1) != b'\n':
+                    f.seek(-2, os.SEEK_CUR)
+            except OSError:
+                f.seek(0)
+            last_line = f.readline().decode()
+            parent_model_name = last_line.strip()
+        _, gens, ids = list(zip(*[dirname.split('_') for dirname in dirnames]))
+        gens = np.array(gens, dtype=int)
+        ids = np.array(ids, dtype=int)
+        idx = np.where(model_id == ids)[0]
+        if len(idx) == 0:
+            # first model of this kind
+            model_name = f'wm_00_{model_id}'
+            initialize_model_info(model_name)
+        else:
+            model_name = dirnames[idx[0]]
 
-    model_ID='model_'+str(torch.randint(memory_models, (1,)).item())
-    if not os.path.exists(os.path.join(folder, model_ID)):
-        os.makedirs(os.path.join(folder, model_ID))
-        change_ownership(os.path.join(folder, model_ID))
+    # model_ID='model_'+str(torch.randint(memory_models, (1,)).item())
+    # if not os.path.exists(os.path.join(folder, model_ID)):
+    #     os.makedirs(os.path.join(folder, model_ID))
+    #     change_ownership(os.path.join(folder, model_ID))
 
-    dump = os.path.join(folder, model_ID, 'params-ijepa.yaml')
+    dump = os.path.join(folder, model_name, 'params-ijepa.yaml')
     with open(dump, 'w') as f:
         yaml.dump(args, f)
     # ----------------------------------------------------------------------- #
     
     # -- log/checkpointing paths
-    log_file = os.path.join(folder, model_ID, f'{tag}.csv')
-    save_path = os.path.join(folder, model_ID, f'{tag}' + '-ep{epoch}.pth.tar')
-    latest_path = os.path.join(folder, model_ID, f'{tag}-latest.pth.tar')
+    log_file = os.path.join(folder, model_name, f'{tag}.csv')
+    save_path = os.path.join(folder, model_name, f'{tag}' + '-ep{epoch}.pth.tar')
+    latest_path = os.path.join(folder, model_name, f'{tag}-latest.pth.tar')
     load_path = None
     if load_model:
         load_path = os.path.join(folder, r_file) if r_file is not None else latest_path
@@ -598,7 +621,7 @@ def world_model(args, resume_preempt=False):
 
 
     # -- init data-loader
-    data = PTZImageDataset('/collected_imgs', transform=transform)
+    data = PTZImageDataset(coll_dir, transform=transform)
     dataloader = DataLoader(data, batch_size=batch_size, shuffle=False)
     ipe = len(dataloader)
     #ipe = int(len(dataloader)*(batch_size/global_batch_size))
@@ -813,8 +836,10 @@ def world_model(args, resume_preempt=False):
                                grad_stats.max))
 
     # -- TRAINING LOOP
-    change_ownership(os.path.join(folder, model_ID))
+    change_ownership(os.path.join(folder, model_name))
     loss_values = []
+    start_time = datetime.datetime.now(tz=datetime.timezone.utc)
+    finish_status = True
     for epoch in range(start_epoch, num_epochs):
         logger.info('Epoch %d' % (epoch + 1))
 
@@ -846,20 +871,24 @@ def world_model(args, resume_preempt=False):
         save_checkpoint(epoch+1)
         change_ownership(ownership_folder)
         if detect_plateau(loss_values, patience=patience, threshold=threshold):
+            logger.info('Early stopping at epoch %d', epoch + 1)
             encoder.cpu()
             predictor.cpu()
             target_encoder.cpu()
             del encoder, predictor, target_encoder, dataloader, data
             gc.collect()
             torch.cuda.empty_cache()
-            return False
-
+            finish_status = False
+            break
+    end_time = datetime.datetime.now(tz=datetime.timezone.utc)
+    save_model_info(model_name, parent_model_name, start_time, end_time, epoch - start_epoch)
 
     if start_epoch == num_epochs:
         PATH, FILE = os.path.split(latest_path)
         shutil.rmtree(PATH)
 
-    return True
+    return finish_status
+
 
 
 def dreamer(args, resume_preempt=False):
