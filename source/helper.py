@@ -71,12 +71,12 @@ def load_checkpoint(
 def init_model(
     device,
     patch_size=16,
-    model_name='vit_base',
+    model_arch='vit_base',
     crop_size=224,
     pred_depth=6,
     pred_emb_dim=384
 ):
-    encoder = vit.__dict__[model_name](
+    encoder = vit.__dict__[model_arch](
         img_size=[crop_size],
         patch_size=patch_size)
     predictor = vit.__dict__['vit_predictor'](
@@ -168,12 +168,12 @@ def init_model(
 def init_world_model(
     device,
     patch_size=16,
-    model_name='vit_base',
+    model_arch='vit_base',
     crop_size=224,
     pred_depth=6,
     pred_emb_dim=384
 ):
-    encoder = vit.__dict__[model_name](
+    encoder = vit.__dict__[model_arch](
         img_size=[crop_size],
         patch_size=patch_size)
     predictor = vit.__dict__['vit_rssm'](
@@ -263,13 +263,13 @@ def init_opt(
 def init_agent_model(
     device,
     patch_size=16,
-    model_name='vit_base',
+    model_arch='vit_base',
     crop_size=224,
     pred_depth=6,
     pred_emb_dim=384,
     num_actions=16
 ):
-    encoder = vit.__dict__[model_name](
+    encoder = vit.__dict__[model_arch](
         img_size=[crop_size],
         patch_size=patch_size)
     predictor = vit.__dict__['vit_agent'](

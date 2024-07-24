@@ -17,7 +17,7 @@ from torch.utils.data import DataLoader
 import numpy as np
 
 from source.prepare_dataset import change_ownership, detect_plateau, get_dirs
-from source.track_progress import initialize_model_info, save_model_info
+from source.track_progress import initialize_model_info, save_model_info, update_progress
 from source.utils.logging import (
     CSVLogger,
     gpu_timer,
@@ -125,7 +125,7 @@ def ijepa_train(args, resume_preempt=False):
 
     # -- META
     use_bfloat16 = args['meta']['use_bfloat16']
-    model_name = args['meta']['model_name']
+    model_arch = args['meta']['model_arch']
     load_model = args['meta']['load_checkpoint'] or resume_preempt
     r_file = args['meta']['read_checkpoint']
     copy_data = args['meta']['copy_data']
@@ -238,7 +238,7 @@ def ijepa_train(args, resume_preempt=False):
         crop_size=crop_size,
         pred_depth=pred_depth,
         pred_emb_dim=pred_emb_dim,
-        model_name=model_name)
+        model_arch=model_arch)
     target_encoder = copy.deepcopy(encoder)
 
 
@@ -463,7 +463,7 @@ def world_model(args, resume_preempt=False):
 
     # -- META
     use_bfloat16 = args['meta']['use_bfloat16']
-    model_name = args['meta']['model_name']
+    model_arch = args['meta']['model_arch']
     load_model = args['meta']['load_checkpoint'] or resume_preempt
     r_file = args['meta']['read_checkpoint']
     copy_data = args['meta']['copy_data']
@@ -537,7 +537,7 @@ def world_model(args, resume_preempt=False):
     prog_file = persis_dir / "progress_model_names.txt"
     if len(dirnames) == 0:
         # the Adam model
-        model_name = f'wm_00_{model_id}'
+        model_name = f'wm_00_{model_id:0>2}'
         initialize_model_info(model_name)
         parent_model_name = None
     else:
@@ -557,7 +557,7 @@ def world_model(args, resume_preempt=False):
         idx = np.where(model_id == ids)[0]
         if len(idx) == 0:
             # first model of this kind
-            model_name = f'wm_00_{model_id}'
+            model_name = f'wm_00_{model_id:0>2}'
             initialize_model_info(model_name)
         else:
             model_name = dirnames[idx[0]]
@@ -603,7 +603,7 @@ def world_model(args, resume_preempt=False):
         crop_size=crop_size,
         pred_depth=pred_depth,
         pred_emb_dim=pred_emb_dim,
-        model_name=model_name)
+        model_name=model_arch)
     target_encoder = copy.deepcopy(encoder)
 
 
@@ -882,11 +882,10 @@ def world_model(args, resume_preempt=False):
             break
     end_time = datetime.datetime.now(tz=datetime.timezone.utc)
     save_model_info(model_name, parent_model_name, start_time, end_time, epoch - start_epoch)
-
+    update_progress(model_name)
     if start_epoch == num_epochs:
         PATH, FILE = os.path.split(latest_path)
         shutil.rmtree(PATH)
-
     return finish_status
 
 
@@ -898,7 +897,7 @@ def dreamer(args, resume_preempt=False):
 
     # -- META
     use_bfloat16 = args['meta']['use_bfloat16']
-    model_name = args['meta']['model_name']
+    model_arch = args['meta']['model_arch']
     load_model = args['meta']['load_checkpoint'] or resume_preempt
     r_file = args['meta']['read_checkpoint']
     copy_data = args['meta']['copy_data']
@@ -1067,7 +1066,7 @@ def dreamer(args, resume_preempt=False):
         crop_size=crop_size,
         pred_depth=pred_depth,
         pred_emb_dim=pred_emb_dim,
-        model_name=model_name)
+        model_arch=model_arch)
 
 
 
