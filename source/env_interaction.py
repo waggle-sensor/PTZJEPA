@@ -172,8 +172,8 @@ def control_ptz(args, params, resume_preempt=False):
 
     # -- log/checkpointing paths
     log_file = os.path.join(folder, world_model_ID, f'{tag}.csv')
-    save_path = os.path.join(folder, world_model_ID, f'{tag}' + '-ep{epoch}.pth.tar')
-    latest_path = os.path.join(folder, world_model_ID, f'{tag}-latest.pth.tar')
+    save_path = os.path.join(folder, world_model_ID, f'{tag}' + '-ep{epoch}.pt')
+    latest_path = os.path.join(folder, world_model_ID, f'{tag}-latest.pt')
     load_path = None
     if load_model:
         load_path = os.path.join(folder, r_file) if r_file is not None else latest_path
@@ -221,8 +221,8 @@ def control_ptz(args, params, resume_preempt=False):
 
     # -- log/checkpointing paths
     agent_log_file = os.path.join(agent_folder, agent_ID, f'{tag}.csv')
-    agent_save_path = os.path.join(agent_folder, agent_ID, f'{tag}' + '-ep{epoch}.pth.tar')
-    agent_target_latest_path = os.path.join(agent_folder, agent_ID, f'{tag}-target_latest.pth.tar')
+    agent_save_path = os.path.join(agent_folder, agent_ID, f'{tag}' + '-ep{epoch}.pt')
+    agent_target_latest_path = os.path.join(agent_folder, agent_ID, f'{tag}-target_latest.pt')
     agent_target_load_path = None
     if load_model:
         agent_target_load_path = os.path.join(agent_folder, r_file) if r_file is not None else agent_target_latest_path

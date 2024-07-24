@@ -188,9 +188,9 @@ def agent_model(args, resume_preempt=False):
 
     # -- log/checkpointing paths
     log_file = os.path.join(folder, model_ID, f'{tag}.csv')
-    save_path = os.path.join(folder, model_ID, f'{tag}' + '-ep{epoch}.pth.tar')
-    policy_latest_path = os.path.join(folder, model_ID, f'{tag}-policy_latest.pth.tar')
-    target_latest_path = os.path.join(folder, model_ID, f'{tag}-target_latest.pth.tar')
+    save_path = os.path.join(folder, model_ID, f'{tag}' + '-ep{epoch}.pt')
+    policy_latest_path = os.path.join(folder, model_ID, f'{tag}-policy_latest.pt')
+    target_latest_path = os.path.join(folder, model_ID, f'{tag}-target_latest.pt')
     policy_load_path = None
     target_load_path = None
     if load_model:

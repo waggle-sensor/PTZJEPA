@@ -201,8 +201,8 @@ def ijepa_train(args, resume_preempt=False):
 
     # -- log/checkpointing paths
     log_file = os.path.join(folder, f'{tag}.csv')
-    save_path = os.path.join(folder, f'{tag}' + '-ep{epoch}.pth.tar')
-    latest_path = os.path.join(folder, f'{tag}-latest.pth.tar')
+    save_path = os.path.join(folder, f'{tag}' + '-ep{epoch}.pt')
+    latest_path = os.path.join(folder, f'{tag}-latest.pt')
     load_path = None
     if load_model:
         load_path = os.path.join(folder, r_file) if r_file is not None else latest_path
@@ -578,8 +578,8 @@ def world_model(args, resume_preempt=False):
     
     # -- log/checkpointing paths
     log_file = os.path.join(folder, model_name, f'{tag}.csv')
-    save_path = os.path.join(folder, model_name, f'{tag}' + '-ep{epoch}.pth.tar')
-    latest_path = os.path.join(folder, model_name, f'{tag}-latest.pth.tar')
+    save_path = os.path.join(folder, model_name, f'{tag}' + '-ep{epoch}.pt')
+    latest_path = os.path.join(folder, model_name, f'{tag}-latest.pt')
     load_path = None
     if load_model:
         load_path = os.path.join(folder, r_file) if r_file is not None else latest_path
@@ -1053,9 +1053,9 @@ def dreamer(args, resume_preempt=False):
     
     # -- log/checkpointing paths
     log_file = os.path.join(folder, model_name, f'{tag}.csv')
-    save_path = os.path.join(folder, model_name, f'{tag}' + '-ep{epoch}.pth.tar')
-    latest_path = os.path.join(folder, model_name, f'{tag}-latest.pth.tar')
-    dream_save_path = os.path.join(dream_folder, f'{tag}' + '-dream{dream}.pth.tar')
+    save_path = os.path.join(folder, model_name, f'{tag}' + '-ep{epoch}.pt')
+    latest_path = os.path.join(folder, model_name, f'{tag}-latest.pt')
+    dream_save_path = os.path.join(dream_folder, f'{tag}' + '-dream{dream}.pt')
     load_path = None
     if load_model:
         load_path = os.path.join(folder, r_file) if r_file is not None else latest_path
