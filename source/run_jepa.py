@@ -603,7 +603,7 @@ def world_model(args, resume_preempt=False):
         crop_size=crop_size,
         pred_depth=pred_depth,
         pred_emb_dim=pred_emb_dim,
-        model_name=model_arch)
+        model_arch=model_arch)
     target_encoder = copy.deepcopy(encoder)
 
 
