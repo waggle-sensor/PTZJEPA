@@ -44,7 +44,7 @@ def initialize_model_info(model_name: str, overwrite: bool = False):
     model_id = int(model_id)
     model_parent_dir = wm_dir if model_type == "wm" else ag_dir
     model_dir = model_parent_dir / model_name
-    model_dir.mkdir(parents=True, exist_ok=True)
+    model_dir.mkdir(parents=True, exist_ok=True, mode=0o777)
     logger.info("Initializing world model at %s", model_dir)
     info_dict = {
         "model_name": model_name,
