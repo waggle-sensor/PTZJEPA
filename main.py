@@ -11,7 +11,6 @@ from source.run_rl import run as run_rl
 from source.env_interaction import run as env_inter
 
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -77,6 +76,11 @@ def get_argparser():
         "--trackpositions",
         action="store_true",
         help="Track camera positions storing them in persistent folder for later analysis",
+    )
+    parser.add_argument(
+        "--track_all",
+        action="store_true",
+        help="Keep positions, commands and embeddings in persistent folder",
     )
     parser.add_argument(
         "-si",
@@ -147,12 +151,19 @@ def get_argparser():
         default="./configs/Config_file.yaml",
     )
     # default='/percistence/configs/in1k_vith14_ep300.yaml')
-
+    
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Run the program in debug mode with more verbose output info",
+    )
     return parser
 
 
 def main():
     args = get_argparser().parse_args()
+    log_level = logging.INFO if not args.debug else logging.DEBUG
+    logging.basicConfig(level=log_level)
     os.environ["CUDA_VISIBLE_DEVICES"] = str(0)
 
     if args.run_mode == "train":

@@ -22,6 +22,8 @@ import numpy as np
 
 from source.datasets.ptz_dataset import get_position_datetime_from_labels
 from source.prepare_dataset import (
+    collect_commands,
+    collect_embeds,
     collect_images,
     collect_positions,
     grab_image, grab_position,
@@ -58,7 +60,7 @@ def control_ptz(args, params, resume_preempt=False):
 
     # -- META
     use_bfloat16 = params['meta']['use_bfloat16']
-    model_name = params['meta']['agent_model_name']
+    model_arch = params['meta']['agent_model_arch']
     load_model = params['meta']['load_checkpoint'] or resume_preempt
     r_file = params['meta']['read_checkpoint']
     pred_depth = params['meta']['pred_depth']
@@ -161,6 +163,7 @@ def control_ptz(args, params, resume_preempt=False):
         print('No agents to use the camera')
         return False
 
+    # Need to determine the id to use here
     world_model_ID=random.sample(world_models,1)[0]
     agent_ID=random.sample(agents,1)[0]
 
@@ -190,7 +193,7 @@ def control_ptz(args, params, resume_preempt=False):
         crop_size=crop_size,
         pred_depth=pred_depth,
         pred_emb_dim=pred_emb_dim,
-        model_name=model_name)
+        model_arch=model_arch)
 
     # -- make data transforms
     transform = make_transforms(
@@ -239,7 +242,7 @@ def control_ptz(args, params, resume_preempt=False):
         crop_size=crop_size,
         pred_depth=pred_depth,
         pred_emb_dim=pred_emb_dim,
-        model_name=model_name,
+        model_arch=model_arch,
         num_actions=num_actions)
 
     for p in target_predictor.parameters():
@@ -254,7 +257,7 @@ def control_ptz(args, params, resume_preempt=False):
 
 
 
-    operate_ptz(args, actions, target_encoder, transform, target_predictor, device)
+    operate_ptz_with_agent(args, actions, target_encoder, transform, target_predictor, device)
     return True
 
 
@@ -266,7 +269,7 @@ def get_last_image(directory):
     return Image.open(directory / f"{all_files[idx]}.jpg"), torch.tensor(arr_pos[idx])
 
 
-def operate_ptz(args, actions, target_encoder, transform, target_predictor, device):
+def operate_ptz_with_agent(args, actions, target_encoder, transform, target_predictor, device):
     if args.camerabrand==0:
         print('Importing Hanwha')
         from source import sunapi_control as sunapi_control
@@ -327,14 +330,13 @@ def operate_ptz(args, actions, target_encoder, transform, target_predictor, devi
             plugin.publish('iteration.number', iteration)
 
         tmp_dir.mkdir(exist_ok=True)
-        PAN = np.random.choice(pan_values, number_of_commands)
-        TILT = np.random.choice(tilt_values, number_of_commands)
-        ZOOM = np.random.choice(zoom_values, number_of_commands)
         # Get first random image as a starting point
         set_random_position(camera=Camera1, args=args)
         grab_image(camera=Camera1, args=args)
 
         positions = [grab_position(camera=Camera1, args=args)]
+        cmds = []
+        embeds = []
         for command in range(number_of_commands):
             image, position = get_last_image(tmp_dir)
             image = transform(image)
@@ -394,24 +396,19 @@ def operate_ptz(args, actions, target_encoder, transform, target_predictor, devi
                     os.remove(img_path)
                 continue
             positions.append(grab_position(camera=Camera1, args=args))
-        #for (pan, tilt, zoom) in zip(PAN, TILT, ZOOM):
-            #try:
-                #if args.camerabrand==0:
-                    #Camera1.relative_control(pan=pan, tilt=tilt, zoom=zoom)
-                #elif args.camerabrand==1:
-                    #Camera1.relative_move(rpan=pan, rtilt=tilt, rzoom=zoom)
-            #except:
-                #with Plugin() as plugin:
-                    #plugin.publish('cannot.set.camera.relative.position', str(datetime.datetime.now()))
-
-            #grab_image(camera=Camera1, args=args)
+            cmds.append(",".join((pan, tilt, zoom)))
+            embeds.append(state_batch.detach().cpu())
 
         #publish_images()
         collect_images(args.keepimages)
         shutil.rmtree(tmp_dir)
-
-        if args.trackpositions:
-            collect_positions(positions)
+        time = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S.%f")
+        if args.trackpositions or args.track_all:
+            collect_positions(positions, time)
+            collect_commands(cmds, time)
+        
+        if args.track_all:
+            collect_embeds(embeds, time)
 
 
 def run(args, fname, mode):
