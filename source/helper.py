@@ -16,8 +16,8 @@ from source.utils.schedulers import (
     CosineWDSchedule)
 from source.utils.tensors import trunc_normal_
 
-logging.basicConfig(stream=sys.stdout, level=logging.INFO)
-logger = logging.getLogger()
+# logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 def load_checkpoint(

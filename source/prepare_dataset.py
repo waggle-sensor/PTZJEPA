@@ -1,7 +1,7 @@
 import logging
 from pathlib import Path
 import pickle
-from typing import Union
+from typing import List, Union
 import numpy as np
 import time
 import datetime
@@ -10,6 +10,8 @@ import os
 import shutil
 import pandas as pd
 from PIL import Image
+from torch import Tensor
+import torch
 
 from waggle.plugin import Plugin
 
@@ -226,16 +228,36 @@ def set_random_position(camera, args):
     time.sleep(1)
 
 
-def collect_positions(positions):
+def collect_positions(positions, current_time: None):
     directory = persis_dir / "collected_positions"
     directory.mkdir(exist_ok=True, mode=0o777, parents=True)
 
-    # ct stores current time
-    # ct = str(datetime.datetime.now())
-    ct = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S.%f")
-    with open(directory / f"positions_at_{ct}.txt", "w") as fh:
+    if current_time is None:
+        current_time = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S.%f")
+    with open(directory / f"positions_at_{current_time}.txt", "w") as fh:
         fh.write("\n".join(positions))
+    change_ownership(directory)
 
+
+def collect_commands(commands, current_time: None):
+    directory = persis_dir / "collected_commands"
+    directory.mkdir(exist_ok=True, mode=0o777, parents=True)
+
+    if current_time is None:
+        current_time = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S.%f")
+    with open(directory / f"commands_at_{current_time}.txt", "w") as fh:
+        fh.write("\n".join(commands))
+    change_ownership(directory)
+
+
+def collect_embeds(embeds: List[Tensor], current_time: None):
+    directory = persis_dir / "collected_embeds"
+    directory.mkdir(exist_ok=True, mode=0o777, parents=True)
+
+    if current_time is None:
+        current_time = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S.%f")
+    fpath = directory / f"embeds_at_{current_time}.pt"
+    torch.save(torch.vstack(embeds), fpath)
     change_ownership(directory)
 
 

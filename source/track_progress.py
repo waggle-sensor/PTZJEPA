@@ -69,7 +69,8 @@ def save_model_info(
     parent_model_name: Union[str, None],
     start_time: datetime.datetime,
     end_time: datetime.datetime,
-    num_epoch: int,
+    num_epochs: int,
+    num_dreams: Union[int, None]
 ):
     """Save model information to a YAML file.
 
@@ -78,7 +79,8 @@ def save_model_info(
         parent_model_name (Union[str, None]): The name of the parent model. None if it's the first run.
         start_time (datetime.datetime): The start time of the training.
         end_time (datetime.datetime): The end time of the training.
-        num_epoch (int): The number of epochs used to train model to reach plateau.
+        num_epochs (int): The number of epochs used to train model to reach plateau.
+        num_dreams (int): The number of dreams used to train the agent, None for world model
     Raises:
         ValueError: if this is not the first time model is run (i.e., the parent model name is None
                     and the restart iteration is not 0.)
@@ -94,9 +96,18 @@ def save_model_info(
     # model_dir = model_parent_dir / model_name
     info_fpath = model_parent_dir / model_name / "model_info.yaml"
     logger.info("Saving %s to %s", model_name, info_fpath)
-    labels = [fp.stem for fp in coll_dir.glob("*.jpg")]
-    num = len(labels)
-    _, datetimes = get_position_datetime_from_labels(labels)
+    image_info_dict = {}
+    if model_type == "wm":
+        labels = [fp.stem for fp in coll_dir.glob("*.jpg")]
+        num = len(labels)
+        _, datetimes = get_position_datetime_from_labels(labels)
+        image_info_dict = {
+            "start_end": [
+                np.min(datetimes).strftime(timefmt),
+                np.max(datetimes).strftime(timefmt),
+            ],
+            "num_images": num,
+        }
     with open(info_fpath, "r") as f:
         info_dict = yaml.safe_load(f)
     # Check that the model info matches with the model name
@@ -143,15 +154,10 @@ def save_model_info(
                 start_time.strftime(timefmt),
                 end_time.strftime(timefmt),
             ],
-            "num_epochs": num_epoch,
+            "num_epochs": num_epochs,
+            "num_dreams": num_dreams,
         },
-        "images": {
-            "start_end": [
-                np.min(datetimes).strftime(timefmt),
-                np.max(datetimes).strftime(timefmt),
-            ],
-            "num_images": num,
-        },
+        "images": image_info_dict,
     }
     info_dict["num_restart"] += 1
     with open(info_fpath, "w") as f:
@@ -161,6 +167,7 @@ def save_model_info(
 def update_progress(current_model_name: str):
     # last line is always the last model name
     prog_file = persis_dir / "progress_model_names.txt"
+    time = datetime.datetime.now(tz=datetime.timezone.utc).strftime(timefmt)
     with open(prog_file, "a") as f:
-        f.write(current_model_name + "\n")
+        f.write(f"{current_model_name} @ {time}\n")
     # now update the last model name to the current model

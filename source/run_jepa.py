@@ -555,6 +555,9 @@ def world_model(args, resume_preempt=False):
                 f.seek(0)
             last_line = f.readline().decode()
             parent_model_name = last_line.strip()
+            # this should be an agent model
+            if parent_model_name.split("_")[0] != "ag":
+                raise RuntimeError("World model's parent must be an agent model except the Adam model")
         _, gens, ids = list(zip(*[dirname.split('_') for dirname in dirnames]))
         gens = np.array(gens, dtype=int)
         ids = np.array(ids, dtype=int)
@@ -885,9 +888,9 @@ def world_model(args, resume_preempt=False):
             finish_status = False
             break
     end_time = datetime.datetime.now(tz=datetime.timezone.utc)
-    save_model_info(model_name, parent_model_name, start_time, end_time, epoch - start_epoch)
+    save_model_info(model_name, parent_model_name, start_time, end_time, epoch - start_epoch, None)
     update_progress(model_name)
-    if start_epoch == num_epochs:
+    if finish_status and start_epoch == num_epochs:
         PATH, FILE = os.path.split(latest_path)
         shutil.rmtree(PATH)
     return finish_status
