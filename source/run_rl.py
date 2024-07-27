@@ -212,7 +212,7 @@ def agent_model(args, resume_preempt=False):
        if len(list(wm.glob("dream_*"))) > 0:
            wm_candid.append(wm.name)
     # pick a random parent model
-    parent_model_name = random.choice(os.listdir(wm_dir))
+    parent_model_name = random.choice(wm_candid)
     parent_model_dir = wm_dir / parent_model_name
     logger.debug("Parent model: %s", parent_model_name)
     if len(idx) == 0:
