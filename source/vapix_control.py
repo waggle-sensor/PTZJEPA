@@ -266,6 +266,7 @@ class CameraControl:
 
         """
         resp = self._camera_command({'query': 'position'})
+        logger.debug("response text: %s", resp.text)
         pan = float(resp.text.split()[0].split('=')[1])
         tilt = float(resp.text.split()[1].split('=')[1])
         zoom = float(resp.text.split()[2].split('=')[1])
