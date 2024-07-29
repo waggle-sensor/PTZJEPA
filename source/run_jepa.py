@@ -18,7 +18,7 @@ from torch.utils.data import DataLoader
 import numpy as np
 
 from source.prepare_dataset import change_ownership, detect_plateau, get_dirs
-from source.track_progress import initialize_model_info, save_model_info, update_progress
+from source.track_progress import initialize_model_info, read_file_lastline, save_model_info, update_progress
 from source.utils.logging import (
     CSVLogger,
     gpu_timer,
@@ -546,18 +546,10 @@ def world_model(args, resume_preempt=False):
             f.write("Start lifelong learning @ " + datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S.%f') + "\n")
     else:
         # read the last line
-        with open(prog_file, 'rb') as f:
-            try:  # catch OSError in case of a one line file
-                f.seek(-2, os.SEEK_END)
-                while f.read(1) != b'\n':
-                    f.seek(-2, os.SEEK_CUR)
-            except OSError:
-                f.seek(0)
-            last_line = f.readline().decode()
-            parent_model_name = last_line.strip()
-            # this should be an agent model
-            if parent_model_name.split("_")[0] != "ag":
-                raise RuntimeError("World model's parent must be an agent model except the Adam model")
+        last_line = read_file_lastline(prog_file)
+        parent_model_name = last_line.split("@")[0].strip()
+        # this should be an agent model
+        assert parent_model_name.split("_")[0] == "ag", "World model's parent must be an agent model except the Adam model"
         _, gens, ids = list(zip(*[dirname.split('_') for dirname in dirnames]))
         gens = np.array(gens, dtype=int)
         ids = np.array(ids, dtype=int)
@@ -1029,10 +1021,17 @@ def dreamer(args, resume_preempt=False):
     # the number of images will be fixed by the input parameters
     # dream_{restart_id}_{dream_sequence}
     models = [subdir.name for subdir in Path(folder).iterdir() if subdir.is_dir()]
-    model_name = random.sample(models, 1)[0]
     persis_dir, coll_dir, tmp_dir = get_dirs()
     wm_dir = persis_dir / "world_models"
     ag_dir = persis_dir / "agents"
+    prog_file = persis_dir / "progress_model_names.txt"
+    # to generate dreams for a random model
+    model_name = random.sample(models, 1)[0]
+    # model should be the last trained world model
+    # last_line = read_file_lastline(prog_file)
+    # model_name = last_line.split("@")[0].strip()
+    # # this should be a model model
+    # assert model_name.split("_")[0] == "wm", "Dreamer requires the last model to be a world model"
     model_dir = wm_dir / model_name
     with open(model_dir / "model_info.yaml", 'r') as f:
         info_dict = yaml.safe_load(f)
@@ -1183,7 +1182,7 @@ def dreamer(args, resume_preempt=False):
         torch.cat(action_sequences, out=aux)
         action_sequences=aux
 
-        num_past_dreams = len(os.listdir(dream_dir))
+        # num_past_dreams = len(os.listdir(dream_dir))
         for idx in range(B):
             dream_dict = {
                 'state_sequence': state_sequences[:,idx],
@@ -1191,8 +1190,10 @@ def dreamer(args, resume_preempt=False):
                 'reward_sequence': reward_sequences[:,idx],
                 'action_sequence': action_sequences[:,idx]
             }
-            # save_dreams(np.random.randint(number_of_dreams), dream_dict)
-            save_dreams(num_past_dreams + idx, dream_dict)
+            # to introduce randomness into dreams when overwriting old dreams
+            # with new ones
+            save_dreams(np.random.randint(number_of_dreams), dream_dict)
+            # save_dreams(num_past_dreams + idx, dream_dict)
 
         change_ownership(dream_folder)
 

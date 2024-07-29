@@ -2,6 +2,8 @@
 # learning process.
 import datetime
 import logging
+import os
+from pathlib import Path
 from typing import Union
 import yaml
 
@@ -171,3 +173,14 @@ def update_progress(current_model_name: str):
     with open(prog_file, "a") as f:
         f.write(f"{current_model_name} @ {time}\n")
     # now update the last model name to the current model
+
+def read_file_lastline(fpath: Path):
+    with open(fpath, 'rb') as f:
+        try:  # catch OSError in case of a one line file
+            f.seek(-2, os.SEEK_END)
+            while f.read(1) != b'\n':
+                f.seek(-2, os.SEEK_CUR)
+        except OSError:
+            f.seek(0)
+        last_line = f.readline().decode()
+    return last_line
