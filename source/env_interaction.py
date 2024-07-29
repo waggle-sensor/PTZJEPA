@@ -402,13 +402,13 @@ def operate_ptz_with_agent(args, actions, target_encoder, transform, target_pred
         #publish_images()
         collect_images(args.keepimages)
         shutil.rmtree(tmp_dir)
-        time = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S.%f")
+        cur_time = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S.%f")
         if args.trackpositions or args.track_all:
-            collect_positions(positions, time)
-            collect_commands(cmds, time)
+            collect_positions(positions, cur_time)
+            collect_commands(cmds, cur_time)
         
         if args.track_all:
-            collect_embeds(embeds, time)
+            collect_embeds(embeds, cur_time)
 
 
 def run(args, fname, mode):
