@@ -151,11 +151,18 @@ def get_argparser():
         default="./configs/Config_file.yaml",
     )
     # default='/percistence/configs/in1k_vith14_ep300.yaml')
-    
+
     parser.add_argument(
         "--debug",
         action="store_true",
         help="Run the program in debug mode with more verbose output info",
+    )
+
+    parser.add_argument(
+        "-pubmsg",
+        "--publish_msgs",
+        action="store_true",
+        help="Whether to publish messages via waggle plugin",
     )
     return parser
 
