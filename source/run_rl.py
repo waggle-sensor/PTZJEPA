@@ -530,7 +530,8 @@ def agent_model(args, resume_preempt=False):
             #print('len(memory): ', len(memory))
             try:
                 transitions = memory.sample(batch_size)
-            except:
+            except Exception as e:
+                logger.error('Error when sampling transitions: %s', e)
                 transitions = None
 
             if transitions == None:

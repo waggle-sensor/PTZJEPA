@@ -285,11 +285,13 @@ def operate_ptz_with_agent(args, actions, target_encoder, transform, target_pred
 
     try:
         Camera1 = sunapi_control.CameraControl(args.cameraip, args.username, args.password)
-    except:
-        with Plugin() as plugin:
-            plugin.publish('cannot.get.camera.from.ip', args.cameraip, timestamp=datetime.datetime.now())
-            plugin.publish('cannot.get.camera.from.un', args.username, timestamp=datetime.datetime.now())
-            plugin.publish('cannot.get.camera.from.pw', args.password, timestamp=datetime.datetime.now())
+    except Exception as e:
+        logger.error("Failed to connect to camera: %s", e)
+        if args.publish_msgs:
+            with Plugin() as plugin:
+                plugin.publish('cannot.get.camera.from.ip', args.cameraip, timestamp=datetime.datetime.now())
+                plugin.publish('cannot.get.camera.from.un', args.username, timestamp=datetime.datetime.now())
+                plugin.publish('cannot.get.camera.from.pw', args.password, timestamp=datetime.datetime.now())
             
 
     if args.camerabrand==0:
@@ -313,10 +315,10 @@ def operate_ptz_with_agent(args, actions, target_encoder, transform, target_pred
         zoom_values = 100*np.array([-2, -1, 0, 1, 2])
 
     zoom_values = zoom_values * zoom_modulation
-
-    with Plugin() as plugin:
-        plugin.publish('starting.new.image.collection.the.number.of.iterations.is', iterations)
-        plugin.publish('the.number.of.images.recorded.by.iteration.is', number_of_commands)
+    if args.publish_msgs:
+        with Plugin() as plugin:
+            plugin.publish('starting.new.image.collection.the.number.of.iterations.is', iterations)
+            plugin.publish('the.number.of.images.recorded.by.iteration.is', number_of_commands)
 
     persis_dir, coll_dir, tmp_dir = get_dirs()
     if coll_dir.exists():
@@ -326,8 +328,9 @@ def operate_ptz_with_agent(args, actions, target_encoder, transform, target_pred
         shutil.rmtree(tmp_dir)
 
     for iteration in range(iterations):
-        with Plugin() as plugin:
-            plugin.publish('iteration.number', iteration)
+        if args.publish_msgs:
+            with Plugin() as plugin:
+                plugin.publish('iteration.number', iteration)
 
         tmp_dir.mkdir(exist_ok=True)
         # Get first random image as a starting point

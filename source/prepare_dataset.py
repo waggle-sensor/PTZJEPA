@@ -59,11 +59,13 @@ def grab_image(camera, args):
     try:
         camera.snap_shot(img_path)
     # TODO: need to check what kind of exception is raised
-    except:
-        with Plugin() as plugin:
-            plugin.publish(
-                "cannot.capture.image.from.camera", str(datetime.datetime.now())
-            )
+    except Exception as e:
+        logger.error("Error when taking snap shot: %s : %s", img_path, e)
+        if args.publish_msgs:
+            with Plugin() as plugin:
+                plugin.publish(
+                    "cannot.capture.image.from.camera", str(datetime.datetime.now())
+                )
         return None
     return img_path
 
@@ -198,11 +200,13 @@ def set_relative_position(camera, args, pan, tilt, zoom):
             camera.relative_control(pan=pan, tilt=tilt, zoom=zoom)
         elif args.camerabrand == 1:
             camera.relative_move(rpan=pan, rtilt=tilt, rzoom=zoom)
-    except:
-        with Plugin() as plugin:
-            plugin.publish(
-                "cannot.set.camera.relative.position", str(datetime.datetime.now())
-            )
+    except Exception as e:
+        logger.error("Error when setting relative position: %s", e)
+        if args.publish_msgs:
+            with Plugin() as plugin:
+                plugin.publish(
+                    "cannot.set.camera.relative.position", str(datetime.datetime.now())
+                )
 
 
 def set_random_position(camera, args):
@@ -219,11 +223,13 @@ def set_random_position(camera, args):
             camera.absolute_control(float(pan_pos), float(tilt_pos), float(zoom_pos))
         elif args.camerabrand == 1:
             camera.absolute_move(float(pan_pos), float(tilt_pos), int(zoom_pos))
-    except:
-        with Plugin() as plugin:
-            plugin.publish(
-                "cannot.set.camera.random.position", str(datetime.datetime.now())
-            )
+    except Exception as e:
+        logger.error("Error when setting random position: %s", e)
+        if args.publish_msgs:
+            with Plugin() as plugin:
+                plugin.publish(
+                    "cannot.set.camera.random.position", str(datetime.datetime.now())
+                )
 
     time.sleep(1)
 
@@ -280,23 +286,25 @@ def operate_ptz(args):
         Camera1 = camera_control.CameraControl(
             args.cameraip, args.username, args.password
         )
-    except:
-        with Plugin() as plugin:
-            plugin.publish(
-                "cannot.get.camera.from.ip",
-                args.cameraip,
-                timestamp=datetime.datetime.now(),
-            )
-            plugin.publish(
-                "cannot.get.camera.from.un",
-                args.username,
-                timestamp=datetime.datetime.now(),
-            )
-            plugin.publish(
-                "cannot.get.camera.from.pw",
-                args.password,
-                timestamp=datetime.datetime.now(),
-            )
+    except Exception as e:
+        logger.error("Error when getting camera: %s", e)
+        if args.publish_msgs:
+            with Plugin() as plugin:
+                plugin.publish(
+                    "cannot.get.camera.from.ip",
+                    args.cameraip,
+                    timestamp=datetime.datetime.now(),
+                )
+                plugin.publish(
+                    "cannot.get.camera.from.un",
+                    args.username,
+                    timestamp=datetime.datetime.now(),
+                )
+                plugin.publish(
+                    "cannot.get.camera.from.pw",
+                    args.password,
+                    timestamp=datetime.datetime.now(),
+                )
     # reset the camera to its original position
     if args.camerabrand == 0:
         Camera1.absolute_control(1, 1, 1)
@@ -319,20 +327,21 @@ def operate_ptz(args):
     tilt_values *= tilt_modulation
     zoom_values = np.array([-0.2, -0.1, 0, 0.1, 0.2])
     zoom_values *= zoom_modulation
-
-    with Plugin() as plugin:
-        plugin.publish(
-            "starting.new.image.collection.the.number.of.iterations.is", iterations
-        )
-        plugin.publish(
-            "the.number.of.images.recorded.by.iteration.is", number_of_commands
-        )
+    if args.publish_msgs:
+        with Plugin() as plugin:
+            plugin.publish(
+                "starting.new.image.collection.the.number.of.iterations.is", iterations
+            )
+            plugin.publish(
+                "the.number.of.images.recorded.by.iteration.is", number_of_commands
+            )
 
     if coll_dir.exists():
         shutil.rmtree(coll_dir, ignore_errors=True)
     for iteration in range(iterations):
-        with Plugin() as plugin:
-            plugin.publish("iteration.number", iteration)
+        if args.publish_msgs:
+            with Plugin() as plugin:
+                plugin.publish("iteration.number", iteration)
 
         tmp_dir.mkdir(exist_ok=True, mode=0o777)
         PAN = np.random.choice(pan_values, number_of_commands)
@@ -347,12 +356,14 @@ def operate_ptz(args):
                     Camera1.relative_control(pan=pan, tilt=tilt, zoom=zoom)
                 elif args.camerabrand == 1:
                     Camera1.relative_move(rpan=pan, rtilt=tilt, rzoom=zoom)
-            except:
-                with Plugin() as plugin:
-                    plugin.publish(
-                        "cannot.set.camera.relative.position",
-                        str(datetime.datetime.now()),
-                    )
+            except Exception as e:
+                logger.error("Error when setting relative position: %s", e)
+                if args.publish_msgs:
+                    with Plugin() as plugin:
+                        plugin.publish(
+                            "cannot.set.camera.relative.position",
+                            str(datetime.datetime.now()),
+                        )
 
             grab_image(camera=Camera1, args=args)
 
@@ -366,9 +377,9 @@ def operate_ptz(args):
     elif args.camerabrand == 1:
         Camera1.absolute_move(1, 1, 1)
         time.sleep(1)
-
-    with Plugin() as plugin:
-        plugin.publish("finishing.image.collection", str(datetime.datetime.now()))
+    if args.publish_msgs:
+        with Plugin() as plugin:
+            plugin.publish("finishing.image.collection", str(datetime.datetime.now()))
 
 
 def change_ownership(folder):
