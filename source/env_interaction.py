@@ -334,8 +334,18 @@ def operate_ptz_with_agent(args, actions, target_encoder, transform, target_pred
 
         tmp_dir.mkdir(exist_ok=True)
         # Get first random image as a starting point
+        # this would cause the error if we failed to capture the first image
         set_random_position(camera=Camera1, args=args)
-        grab_image(camera=Camera1, args=args)
+        count = 0
+        while count < 10:
+            img_path = grab_image(camera=Camera1, args=args)
+            if img_path and verify_image(img_path):
+                break
+            count += 1
+            time.sleep(1) # to avoid jamming the network
+        if count == 10:
+            # it's unlikely to get the image at the last try
+            raise RuntimeError("Failed to grab image after 10 attempts, agent has no starting image, has to stop!")
 
         positions = [grab_position(camera=Camera1, args=args)]
         cmds = []
@@ -393,13 +403,15 @@ def operate_ptz_with_agent(args, actions, target_encoder, transform, target_pred
                 if img_path and verify_image(img_path):
                     break
                 count += 1
-            if count == 10 and not img_path:
+                # it's unlikely to get the image at the last try
+                time.sleep(1) # to avoid jamming the network
+            if count == 10:
                 logger.warning("Failed to grab image after 10 attempts, skip this command")
                 if os.path.exists(img_path):
                     os.remove(img_path)
                 continue
             positions.append(grab_position(camera=Camera1, args=args))
-            cmds.append(",".join((pan, tilt, zoom)))
+            cmds.append(f"{pan:.2f},{tilt:.2f},{zoom:.2f}")
             embeds.append(state_batch.detach().cpu())
 
         #publish_images()

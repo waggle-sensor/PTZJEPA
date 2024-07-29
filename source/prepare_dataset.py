@@ -234,7 +234,7 @@ def set_random_position(camera, args):
     time.sleep(1)
 
 
-def collect_positions(positions, current_time: None):
+def collect_positions(positions: List[str], current_time: None):
     directory = persis_dir / "collected_positions"
     directory.mkdir(exist_ok=True, mode=0o777, parents=True)
 
@@ -245,7 +245,7 @@ def collect_positions(positions, current_time: None):
     change_ownership(directory)
 
 
-def collect_commands(commands, current_time: None):
+def collect_commands(commands: List[str], current_time: None):
     directory = persis_dir / "collected_commands"
     directory.mkdir(exist_ok=True, mode=0o777, parents=True)
 

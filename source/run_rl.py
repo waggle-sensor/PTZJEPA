@@ -8,7 +8,7 @@ import copy
 import logging
 import yaml
 import pprint
-from source.track_progress import initialize_model_info, save_model_info, update_progress
+from source.track_progress import initialize_model_info, read_file_lastline, save_model_info, update_progress
 import torch
 import torch.nn.functional as F
 #import torch.nn.SmoothL1Loss as S1L
@@ -191,15 +191,8 @@ def agent_model(args, resume_preempt=False):
     prog_file = persis_dir / "progress_model_names.txt"
     # agent model cannot be the Adam model as there must be a world model before it
     # read the last line
-    with open(prog_file, 'rb') as f:
-        try:  # catch OSError in case of a one line file
-            f.seek(-2, os.SEEK_END)
-            while f.read(1) != b'\n':
-                f.seek(-2, os.SEEK_CUR)
-        except OSError:
-            f.seek(0)
-        last_line = f.readline().decode()
-        last_model_name = last_line.strip()
+    # last_line = read_file_lastline(prog_file)
+    # last_model_name = last_line.split("@")[0].strip()
     idx = []
     if len(os.listdir(ag_dir)) > 0:
         _, gens, ids = list(zip(*[dirname.split('_') for dirname in dirnames]))
