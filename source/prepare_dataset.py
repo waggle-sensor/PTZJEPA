@@ -91,51 +91,54 @@ def publish_images():
         plugin.upload_file(ct + "_images.tar")
 
 
-def verify_image(fp, try_fix=True):
+def verify_image(fpath, try_fix=True):
     """
     Verifies the integrity of an image file.
 
     Args:
-        fp (str): The file path of the image file to be verified.
+        fpath (str): The file path of the image file to be verified.
         try_fix (bool): Whether to attempt to fix the image file if it is corrupted. Default is True.
 
     Returns:
         bool: True if the image file is valid or successfully fixed, False otherwise.
     """
     try:
-        image = Image.open(fp)
+        image = Image.open(fpath)
         image.verify()
         if try_fix:
             # to fix corrupted images
-            image = Image.open(fp)
-            image.save(fp)
+            image = Image.open(fpath)
+            image.save(fpath)
         return True
     except (OSError, IOError, SyntaxError) as e:
-        logger.exception("Error: %s : %s", fp, e.strerror)
+        logger.exception("Error: %s : %s", fpath, e.strerror)
         return False
 
 
 def collect_images(keepimages):
     coll_dir.mkdir(exist_ok=True, mode=0o777)
     # files = glob.glob("/imgs/*.jpg", recursive=True)
+    num_image = 0
     for fp in tmp_dir.glob("*.jpg"):
         if verify_image(fp):
             try:
                 shutil.copy(fp, coll_dir)
+                num_image += 1
             except OSError as e:
                 logger.error("Error: %s : %s", fp, e.strerror)
-        if keepimages:
-            dest = persis_dir / "collected_imgs"
-            dest.mkdir(exist_ok=True, mode=0o777)
-            # check mode of the directory
-            if dest.stat().st_mode != 0o777:
-                os.chmod(dest, 0o777)
-            for fp in coll_dir.glob("*.jpg"):
-                try:
-                    dest_fp = shutil.copy(fp, dest)
-                    os.chmod(dest_fp, 0o666)  # RW for all
-                except OSError as e:
-                    logger.error("Error: %s : %s", fp, e.strerror)
+    if keepimages:
+        dest = persis_dir / "collected_imgs"
+        dest.mkdir(exist_ok=True, mode=0o777)
+        # check mode of the directory, enforce it to be accessible by everyone
+        if dest.stat().st_mode != 0o777:
+            os.chmod(dest, 0o777)
+        for fp in coll_dir.glob("*.jpg"):
+            try:
+                dest_fp = shutil.copy(fp, dest)
+                os.chmod(dest_fp, 0o666)  # RW for all
+            except OSError as e:
+                logger.error("Error: %s : %s", fp, e.strerror)
+    return num_image
 
 
 def get_images_from_storage(args):

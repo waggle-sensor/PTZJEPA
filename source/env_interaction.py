@@ -7,6 +7,7 @@ import os
 import shutil
 import random
 import logging
+from typing import Union
 import yaml
 import pprint
 import torch
@@ -39,6 +40,7 @@ from source.helper import (
     init_world_model,
     init_agent_model
 )
+from source.track_progress import timefmt, update_progress
 
 
 from source.transforms import make_transforms
@@ -164,19 +166,27 @@ def control_ptz(args, params, resume_preempt=False):
         return False
 
     # Need to determine the id to use here
-    world_model_ID=random.sample(world_models,1)[0]
-    agent_ID=random.sample(agents,1)[0]
-
+    # world_model_name=random.sample(world_models,1)[0]
+    # agent_name=random.sample(agents,1)[0]
+    # choose a random agent and use its corresponding parent WM encoder
+    persis_dir, coll_dir, tmp_dir = get_dirs()
+    wm_dir = persis_dir / "world_models"
+    ag_dir = persis_dir / "agents"
+    agent_name = random.choice(agents)
+    with open(ag_dir / agent_name / "model_info.yaml", "r") as f:
+        info_dict = yaml.safe_load(f)
+    restart_info = info_dict[f"restart_{info_dict['num_restart']:0>2}"]
+    world_model_name = restart_info["parent_model"]
     # ----------------------------------------------------------------------- #
     #   Bring world model first
     # ----------------------------------------------------------------------- #
 
-    print('world_model_ID: ', world_model_ID)
+    print('world_model_name: ', world_model_name)
 
     # -- log/checkpointing paths
-    log_file = os.path.join(folder, world_model_ID, f'{tag}.csv')
-    save_path = os.path.join(folder, world_model_ID, f'{tag}' + '-ep{epoch}.pt')
-    latest_path = os.path.join(folder, world_model_ID, f'{tag}-latest.pt')
+    log_file = os.path.join(folder, world_model_name, f'{tag}.csv')
+    save_path = os.path.join(folder, world_model_name, f'{tag}' + '-ep{epoch}.pt')
+    latest_path = os.path.join(folder, world_model_name, f'{tag}-latest.pt')
     load_path = None
     if load_model:
         load_path = os.path.join(folder, r_file) if r_file is not None else latest_path
@@ -220,12 +230,12 @@ def control_ptz(args, params, resume_preempt=False):
     #   Bring agent model
     # ----------------------------------------------------------------------- #
 
-    print('agent_ID: ', agent_ID)
+    print('agent_name: ', agent_name)
 
     # -- log/checkpointing paths
-    agent_log_file = os.path.join(agent_folder, agent_ID, f'{tag}.csv')
-    agent_save_path = os.path.join(agent_folder, agent_ID, f'{tag}' + '-ep{epoch}.pt')
-    agent_target_latest_path = os.path.join(agent_folder, agent_ID, f'{tag}-target_latest.pt')
+    agent_log_file = os.path.join(agent_folder, agent_name, f'{tag}.csv')
+    agent_save_path = os.path.join(agent_folder, agent_name, f'{tag}' + '-ep{epoch}.pt')
+    agent_target_latest_path = os.path.join(agent_folder, agent_name, f'{tag}-target_latest.pt')
     agent_target_load_path = None
     if load_model:
         agent_target_load_path = os.path.join(agent_folder, r_file) if r_file is not None else agent_target_latest_path
@@ -257,7 +267,17 @@ def control_ptz(args, params, resume_preempt=False):
 
 
 
-    operate_ptz_with_agent(args, actions, target_encoder, transform, target_predictor, device)
+    start_end_img_path, num_image = operate_ptz_with_agent(args, actions, target_encoder, transform, target_predictor, device)
+    _, start_end_time = get_position_datetime_from_labels([Path(im).stem for im in start_end_img_path])
+    start_end_time = [atime.strftime(timefmt) for atime in start_end_time]
+    if "start_end" not in restart_info["images"].keys():
+        restart_info["images"]["start_end"] = []
+        restart_info["images"]["num_images"] = 0
+    restart_info["images"]["start_end"] += start_end_time
+    restart_info["images"]["num_images"] += num_image
+    with open(ag_dir / agent_name / "model_info.yaml", "w") as f:
+        yaml.safe_dump(info_dict, f)
+    update_progress(agent_name)
     return True
 
 
@@ -267,6 +287,13 @@ def get_last_image(directory):
     arr_pos, arr_datetime = get_position_datetime_from_labels(all_files)
     idx = np.argmax(arr_datetime)
     return Image.open(directory / f"{all_files[idx]}.jpg"), torch.tensor(arr_pos[idx])
+
+
+def read_image_with_positon_from_path(impath: Union[Path, str]):
+    impath = Path(impath)
+    image = Image.open(impath)
+    position, _ = get_position_datetime_from_labels(impath.stem)
+    return image, torch.tensor(position)
 
 
 def operate_ptz_with_agent(args, actions, target_encoder, transform, target_predictor, device):
@@ -326,7 +353,8 @@ def operate_ptz_with_agent(args, actions, target_encoder, transform, target_pred
 
     if tmp_dir.exists():
         shutil.rmtree(tmp_dir)
-
+    first_image_path = None
+    num_image = 0
     for iteration in range(iterations):
         if args.publish_msgs:
             with Plugin() as plugin:
@@ -350,8 +378,12 @@ def operate_ptz_with_agent(args, actions, target_encoder, transform, target_pred
         positions = [grab_position(camera=Camera1, args=args)]
         cmds = []
         embeds = []
+        if first_image_path is None:
+            first_image_path = img_path
+        last_image_path = img_path
         for command in range(number_of_commands):
-            image, position = get_last_image(tmp_dir)
+            # image, position = get_last_image(tmp_dir)
+            image, position = read_image_with_positon_from_path(last_image_path)
             image = transform(image)
             image = image.unsqueeze(0)
             position_batch = position.unsqueeze(0).to(device, dtype=torch.float32)
@@ -413,9 +445,10 @@ def operate_ptz_with_agent(args, actions, target_encoder, transform, target_pred
             positions.append(grab_position(camera=Camera1, args=args))
             cmds.append(f"{pan:.2f},{tilt:.2f},{zoom:.2f}")
             embeds.append(state_batch.detach().cpu())
-
+            last_image_path = img_path
         #publish_images()
-        collect_images(args.keepimages)
+        num_image += collect_images(args.keepimages)
+        
         shutil.rmtree(tmp_dir)
         cur_time = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S.%f")
         if args.trackpositions or args.track_all:
@@ -424,7 +457,7 @@ def operate_ptz_with_agent(args, actions, target_encoder, transform, target_pred
         
         if args.track_all:
             collect_embeds(embeds, cur_time)
-
+    return [first_image_path, last_image_path], num_image
 
 def run(args, fname, mode):
 
@@ -434,7 +467,7 @@ def run(args, fname, mode):
     params = None
     with open(fname, 'r') as y_file:
         logger.info('loading params...')
-        params = yaml.load(y_file, Loader=yaml.FullLoader)
+        params = yaml.safe_load(y_file)
         logger.info('loaded params...')
         pp = pprint.PrettyPrinter(indent=4)
         pp.pprint(params)
