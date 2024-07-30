@@ -324,9 +324,9 @@ def agent_model(args, resume_preempt=False):
 
     ipe = len(dataloader)*dream_length
 
-    print('PREPARING DATA...')
+    logger.info('PREPARING DATA...')
     memory = prepare_data(dataloader, len(dataloader)*batch_size*dream_length)
-    print('DONE!')
+    logger.info('DONE!')
 
 
 
@@ -524,11 +524,10 @@ def agent_model(args, resume_preempt=False):
             try:
                 transitions = memory.sample(batch_size)
             except Exception as e:
-                logger.error('Error when sampling transitions: %s', e)
+                logger.exception('Error when sampling transitions: %s', e)
                 transitions = None
-
-            if transitions == None:
-                print('Not enough data for the RL agent')
+                # raise RuntimeError('Not enough data for the RL agent, increase number of movements or iterations')
+                logger.warning('Not enough data for the RL agent')
                 return False
 
             (loss, _new_lr, _new_wd, grad_stats), etime = gpu_timer(optimize_model, arguments=transitions)
@@ -582,7 +581,7 @@ def run(fname, mode):
     params = None
     with open(fname, 'r') as y_file:
         logger.info('loading params...')
-        params = yaml.safe_load(y_file, Loader=yaml.FullLoader)
+        params = yaml.safe_load(y_file)
         logger.info('loaded params...')
         pp = pprint.PrettyPrinter(indent=4)
         pp.pprint(params)

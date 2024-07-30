@@ -167,6 +167,11 @@ def save_model_info(
 
 
 def update_progress(current_model_name: str):
+    # steps:
+    # 1. train a random world model
+    # 2. generate dreams by a random trained world model
+    # 3. train a random agent (needs to stick to a single world model)
+    # 4. gather images using a random trained agent
     # last line is always the last model name
     prog_file = persis_dir / "progress_model_names.txt"
     time = datetime.datetime.now(tz=datetime.timezone.utc).strftime(timefmt)

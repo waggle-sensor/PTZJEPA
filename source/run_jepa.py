@@ -1264,7 +1264,7 @@ def dreamer(args, resume_preempt=False):
         if itr > number_of_dreams:
             break
 
-
+    update_progress(model_name)
     return True
 
 
@@ -1278,7 +1278,7 @@ def run(fname, mode):
     params = None
     with open(fname, 'r') as y_file:
         logger.info('loading params...')
-        params = yaml.safe_load(y_file, Loader=yaml.FullLoader)
+        params = yaml.safe_load(y_file)
         logger.info('loaded params...')
         pp = pprint.PrettyPrinter(indent=4)
         pp.pprint(params)

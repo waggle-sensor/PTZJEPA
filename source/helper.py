@@ -62,7 +62,8 @@ def load_checkpoint(
         del checkpoint
 
     except Exception as e:
-        logger.info(f'Encountered exception when loading checkpoint {e}')
+        logger.error('Encountered exception when loading checkpoint %s', e)
+        logger.info("Will start a new instance")
         epoch = 0
 
     return encoder, predictor, target_encoder, opt, scaler, epoch
