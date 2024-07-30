@@ -58,7 +58,7 @@ def initialize_model_info(model_name: str, overwrite: bool = False):
     if (model_dir / "model_info.yaml").exists() and not overwrite:
         raise RuntimeError(f"Model info already exists at {model_dir}")
     with open(model_dir / "model_info.yaml", "w") as f:
-        yaml.dump(info_dict, f)
+        yaml.safe_dump(info_dict, f)
     return model_dir
 
 
@@ -163,7 +163,7 @@ def save_model_info(
     }
     info_dict["num_restart"] += 1
     with open(info_fpath, "w") as f:
-        yaml.dump(info_dict, f)
+        yaml.safe_dump(info_dict, f)
 
 
 def update_progress(current_model_name: str):

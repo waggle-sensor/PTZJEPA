@@ -222,7 +222,7 @@ def agent_model(args, resume_preempt=False):
             parent_model_name = info_dict["restart_00"]["parent_model"]            
     dump = os.path.join(folder, model_name, 'params-agent.yaml')
     with open(dump, 'w') as f:
-        yaml.dump(args, f)
+        yaml.safe_dump(args, f)
     # ----------------------------------------------------------------------- #
 
 
@@ -582,7 +582,7 @@ def run(fname, mode):
     params = None
     with open(fname, 'r') as y_file:
         logger.info('loading params...')
-        params = yaml.load(y_file, Loader=yaml.FullLoader)
+        params = yaml.safe_load(y_file, Loader=yaml.FullLoader)
         logger.info('loaded params...')
         pp = pprint.PrettyPrinter(indent=4)
         pp.pprint(params)

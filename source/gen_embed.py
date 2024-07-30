@@ -125,7 +125,7 @@ def generate_embedding(
         output_dir.mkdir(mode=0o777)
     logger.info("Loading parameters")
     with open(config_fpath, "r") as f:
-        config = yaml.load(f, Loader=yaml.FullLoader)
+        config = yaml.safe_load(f, Loader=yaml.FullLoader)
     # use_bfloat16 = config["meta"]["use_bfloat16"]
     model_name = config["meta"]["model_name"]
     pred_depth = config["meta"]["pred_depth"]
