@@ -194,7 +194,7 @@ def ijepa_train(args, resume_preempt=False):
 
     dump = os.path.join(folder, 'params-ijepa.yaml')
     with open(dump, 'w') as f:
-        yaml.dump(args, f)
+        yaml.safe_dump(args, f)
     # ----------------------------------------------------------------------- #
 
 
@@ -568,7 +568,7 @@ def world_model(args, resume_preempt=False):
 
     dump = os.path.join(folder, model_name, 'params-ijepa.yaml')
     with open(dump, 'w') as f:
-        yaml.dump(args, f)
+        yaml.safe_dump(args, f)
     # ----------------------------------------------------------------------- #
     
     # -- log/checkpointing paths
@@ -1050,7 +1050,7 @@ def dreamer(args, resume_preempt=False):
 
     # dump = os.path.join(folder, model_ID, 'params-ijepa.yaml')
     # with open(dump, 'w') as f:
-    #     yaml.dump(args, f)
+    #     yaml.safe_dump(args, f)
     # ----------------------------------------------------------------------- #
     
     # -- log/checkpointing paths
@@ -1278,7 +1278,7 @@ def run(fname, mode):
     params = None
     with open(fname, 'r') as y_file:
         logger.info('loading params...')
-        params = yaml.load(y_file, Loader=yaml.FullLoader)
+        params = yaml.safe_load(y_file, Loader=yaml.FullLoader)
         logger.info('loaded params...')
         pp = pprint.PrettyPrinter(indent=4)
         pp.pprint(params)
