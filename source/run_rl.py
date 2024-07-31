@@ -1,5 +1,6 @@
 # this python script runs jepa
 
+import datetime
 import os
 import shutil
 import random
@@ -7,6 +8,7 @@ import copy
 import logging
 import yaml
 import pprint
+from source.track_progress import initialize_model_info, read_file_lastline, save_model_info, update_progress
 import torch
 import torch.nn.functional as F
 #import torch.nn.SmoothL1Loss as S1L
@@ -15,6 +17,7 @@ from torch.utils.data import DataLoader
 
 import numpy as np
 
+from source.prepare_dataset import change_ownership, detect_plateau, get_dirs
 from source.utils.logging import (
     CSVLogger,
     gpu_timer,
@@ -40,7 +43,6 @@ log_freq = 10
 checkpoint_freq = 50000000000000
 # --
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 
 def agent_model(args, resume_preempt=False):
@@ -50,7 +52,7 @@ def agent_model(args, resume_preempt=False):
 
     # -- META
     use_bfloat16 = args['meta']['use_bfloat16']
-    model_name = args['meta']['agent_model_name']
+    model_arch = args['meta']['agent_model_arch']
     load_model = args['meta']['load_checkpoint'] or resume_preempt
     r_file = args['meta']['read_checkpoint']
     copy_data = args['meta']['copy_data']
@@ -115,6 +117,7 @@ def agent_model(args, resume_preempt=False):
 
     # -- DREAMER
     dream_length = args['dreamer']['dream_length']
+    loyal = True # whether to loyal to one world model
 
     # -- ACTIONS
     action_noop = args['action']['noop']
@@ -167,38 +170,69 @@ def agent_model(args, resume_preempt=False):
     num_actions=len(actions.keys())
 
 
-    def change_ownership(folder):
-        for subdir, dirs, files in os.walk(folder):
-            os.chmod(subdir, 0o777)
-
-            for File in files:
-                os.chmod(os.path.join(subdir, File), 0o666)
-
-
 
 
     if not os.path.exists(folder):
         os.makedirs(folder)
         change_ownership(folder)
 
-    model_ID='model_'+str(torch.randint(memory_models, (1,)).item())
-    if not os.path.exists(os.path.join(folder, model_ID)):
-        os.makedirs(os.path.join(folder, model_ID))
-        change_ownership(os.path.join(folder, model_ID))
+    # model_ID='model_'+str(torch.randint(memory_models, (1,)).item())
+    # if not os.path.exists(os.path.join(folder, model_ID)):
+    #     os.makedirs(os.path.join(folder, model_ID))
+    #     change_ownership(os.path.join(folder, model_ID))
 
-    dump = os.path.join(folder, model_ID, 'params-agent.yaml')
+    model_id = np.random.randint(memory_models)
+    torch.manual_seed(model_id)
+    logger.debug("Model id %d", model_id)
+    persis_dir, coll_dir, tmp_dir = get_dirs()
+    wm_dir = persis_dir / "world_models"
+    ag_dir = persis_dir / "agents"
+    dirnames = [d.name for d in ag_dir.iterdir() if d.is_dir()]
+    prog_file = persis_dir / "progress_model_names.txt"
+    # agent model cannot be the Adam model as there must be a world model before it
+    # read the last line
+    # last_line = read_file_lastline(prog_file)
+    # last_model_name = last_line.split("@")[0].strip()
+    idx = []
+    if len(os.listdir(ag_dir)) > 0:
+        _, gens, ids = list(zip(*[dirname.split('_') for dirname in dirnames]))
+        gens = np.array(gens, dtype=int)
+        ids = np.array(ids, dtype=int)
+        idx = np.where(model_id == ids)[0]
+    # need to make sure there are enough dreamsets under this WM
+    wm_candid = []
+    for wm in wm_dir.glob("*"):
+       if len(list(wm.glob("dream_*"))) > 0:
+           wm_candid.append(wm.name)
+    # pick a random parent model
+    parent_model_name = random.choice(wm_candid)
+    parent_model_dir = wm_dir / parent_model_name
+    logger.debug("Parent model: %s", parent_model_name)
+    if len(idx) == 0:
+        # first model of this kind
+        model_name = f'ag_00_{model_id:0>2}'
+        initialize_model_info(model_name)
+    else:
+        model_name = dirnames[idx[0]]
+        if loyal:
+            # stick to the same model for this generation
+            info_fpath = ag_dir / model_name / "model_info.yaml"
+            with open(info_fpath, "r") as f:
+                info_dict = yaml.safe_load(f)
+            parent_model_name = info_dict["restart_00"]["parent_model"]            
+    dump = os.path.join(folder, model_name, 'params-agent.yaml')
     with open(dump, 'w') as f:
-        yaml.dump(args, f)
+        yaml.safe_dump(args, f)
     # ----------------------------------------------------------------------- #
 
 
 
 
     # -- log/checkpointing paths
-    log_file = os.path.join(folder, model_ID, f'{tag}.csv')
-    save_path = os.path.join(folder, model_ID, f'{tag}' + '-ep{epoch}.pth.tar')
-    policy_latest_path = os.path.join(folder, model_ID, f'{tag}-policy_latest.pth.tar')
-    target_latest_path = os.path.join(folder, model_ID, f'{tag}-target_latest.pth.tar')
+    log_file = os.path.join(folder, model_name, f'{tag}.csv')
+    save_path = os.path.join(folder, model_name, f'{tag}' + '-ep{epoch}.pt')
+    policy_latest_path = os.path.join(folder, model_name, f'{tag}-policy_latest.pt')
+    target_latest_path = os.path.join(folder, model_name, f'{tag}-target_latest.pt')
     policy_load_path = None
     target_load_path = None
     if load_model:
@@ -269,20 +303,30 @@ def agent_model(args, resume_preempt=False):
         crop_size=crop_size,
         pred_depth=pred_depth,
         pred_emb_dim=pred_emb_dim,
-        model_name=model_name,
+        model_arch=model_arch,
         num_actions=num_actions)
     target_predictor = copy.deepcopy(policy_predictor)
 
 
     # -- init data-loader
+    # pick the highest dream number
+    dream_iter = max(
+        [
+            int(onedir.name.split("_")[-1]) 
+            for onedir in parent_model_dir.glob("dream_*")
+            if onedir.is_dir()
+        ]
+    )
+    dream_folder = parent_model_dir / f"dream_{dream_iter:0>2}"
     data = DreamDataset(dream_folder)
+    num_dreams = len(data)
     dataloader = DataLoader(data, batch_size=batch_size, shuffle=True)
 
     ipe = len(dataloader)*dream_length
 
-    print('PREPARING DATA...')
+    logger.info('PREPARING DATA...')
     memory = prepare_data(dataloader, len(dataloader)*batch_size*dream_length)
-    print('DONE!')
+    logger.info('DONE!')
 
 
 
@@ -458,36 +502,11 @@ def agent_model(args, resume_preempt=False):
                 )
 
 
-
-
-    def detect_plateau(loss_values, patience=5, threshold=1e-4):
-        """
-        Detects plateauing behavior in a loss curve.
-
-        Parameters:
-            loss_values (list or numpy array): List or array containing the loss values over epochs.
-            patience (int): Number of epochs with no improvement to wait before stopping.
-            threshold (float): Threshold for the change in loss to be considered as plateauing.
-
-        Returns:
-            plateaued (bool): True if the loss has plateaued, False otherwise.
-        """
-        if len(loss_values) < patience + 1:
-            return False  # Not enough data to detect plateauing
-
-        recent_losses = loss_values[-patience:]
-        mean_loss = np.mean(recent_losses)
-        current_loss = loss_values[-1]
-
-        if np.abs(current_loss - mean_loss) < threshold:
-            return True  # Loss has plateaued
-        else:
-            return False  # Loss has not plateaued
-
-
     # -- TRAINING LOOP
     #memory = ReplayMemory(100000)
     loss_values = []
+    start_time = datetime.datetime.now(tz=datetime.timezone.utc)
+    finish_status = True
     for epoch in range(start_epoch, num_epochs):
         #dataloader = DataLoader(data, batch_size=batch_size, shuffle=True)
         logger.info('Epoch %d' % (epoch + 1))
@@ -504,11 +523,11 @@ def agent_model(args, resume_preempt=False):
             #print('len(memory): ', len(memory))
             try:
                 transitions = memory.sample(batch_size)
-            except:
+            except Exception as e:
+                logger.exception('Error when sampling transitions: %s', e)
                 transitions = None
-
-            if transitions == None:
-                print('Not enough data for the RL agent')
+                # raise RuntimeError('Not enough data for the RL agent, increase number of movements or iterations')
+                logger.warning('Not enough data for the RL agent')
                 return False
 
             (loss, _new_lr, _new_wd, grad_stats), etime = gpu_timer(optimize_model, arguments=transitions)
@@ -537,17 +556,19 @@ def agent_model(args, resume_preempt=False):
         change_ownership(ownership_folder)
 
         if detect_plateau(loss_values, patience=patience, threshold=threshold):
-            return False
+            finish_status = False
+            break
 
-
-    if start_epoch == num_epochs:
+    end_time = datetime.datetime.now(tz=datetime.timezone.utc)
+    save_model_info(model_name, parent_model_name, start_time, end_time, epoch - start_epoch, num_epochs)
+    update_progress(model_name)
+    if finish_status and start_epoch == num_epochs:
         PATH, FILE = os.path.split(policy_latest_path)
         shutil.rmtree(PATH)
         PATH, FILE = os.path.split(target_latest_path)
         shutil.rmtree(PATH)
 
-
-    return True
+    return finish_status
 
 
 
@@ -560,7 +581,7 @@ def run(fname, mode):
     params = None
     with open(fname, 'r') as y_file:
         logger.info('loading params...')
-        params = yaml.load(y_file, Loader=yaml.FullLoader)
+        params = yaml.safe_load(y_file)
         logger.info('loaded params...')
         pp = pprint.PrettyPrinter(indent=4)
         pp.pprint(params)

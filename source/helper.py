@@ -16,8 +16,8 @@ from source.utils.schedulers import (
     CosineWDSchedule)
 from source.utils.tensors import trunc_normal_
 
-logging.basicConfig(stream=sys.stdout, level=logging.INFO)
-logger = logging.getLogger()
+# logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 def load_checkpoint(
@@ -62,7 +62,8 @@ def load_checkpoint(
         del checkpoint
 
     except Exception as e:
-        logger.info(f'Encountered exception when loading checkpoint {e}')
+        logger.error('Encountered exception when loading checkpoint %s', e)
+        logger.info("Will start a new instance")
         epoch = 0
 
     return encoder, predictor, target_encoder, opt, scaler, epoch
@@ -71,12 +72,12 @@ def load_checkpoint(
 def init_model(
     device,
     patch_size=16,
-    model_name='vit_base',
+    model_arch='vit_base',
     crop_size=224,
     pred_depth=6,
     pred_emb_dim=384
 ):
-    encoder = vit.__dict__[model_name](
+    encoder = vit.__dict__[model_arch](
         img_size=[crop_size],
         patch_size=patch_size)
     predictor = vit.__dict__['vit_predictor'](
@@ -168,12 +169,12 @@ def init_model(
 def init_world_model(
     device,
     patch_size=16,
-    model_name='vit_base',
+    model_arch='vit_base',
     crop_size=224,
     pred_depth=6,
     pred_emb_dim=384
 ):
-    encoder = vit.__dict__[model_name](
+    encoder = vit.__dict__[model_arch](
         img_size=[crop_size],
         patch_size=patch_size)
     predictor = vit.__dict__['vit_rssm'](
@@ -263,13 +264,13 @@ def init_opt(
 def init_agent_model(
     device,
     patch_size=16,
-    model_name='vit_base',
+    model_arch='vit_base',
     crop_size=224,
     pred_depth=6,
     pred_emb_dim=384,
     num_actions=16
 ):
-    encoder = vit.__dict__[model_name](
+    encoder = vit.__dict__[model_arch](
         img_size=[crop_size],
         patch_size=patch_size)
     predictor = vit.__dict__['vit_agent'](
