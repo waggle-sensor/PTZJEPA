@@ -63,6 +63,8 @@ def control_ptz(args, params, resume_preempt=False):
     # -- META
     use_bfloat16 = params['meta']['use_bfloat16']
     model_arch = params['meta']['agent_model_arch']
+    wm_model_arch = model_arch
+    agent_model_arch = model_arch
     load_model = params['meta']['load_checkpoint'] or resume_preempt
     r_file = params['meta']['read_checkpoint']
     pred_depth = params['meta']['pred_depth']
@@ -203,7 +205,7 @@ def control_ptz(args, params, resume_preempt=False):
         crop_size=crop_size,
         pred_depth=pred_depth,
         pred_emb_dim=pred_emb_dim,
-        model_arch=model_arch)
+        model_arch=wm_model_arch) # agent and world model are using the same encoder
 
     # -- make data transforms
     transform = make_transforms(
@@ -252,7 +254,7 @@ def control_ptz(args, params, resume_preempt=False):
         crop_size=crop_size,
         pred_depth=pred_depth,
         pred_emb_dim=pred_emb_dim,
-        model_arch=model_arch,
+        model_arch=agent_model_arch,
         num_actions=num_actions)
 
     for p in target_predictor.parameters():
@@ -390,7 +392,8 @@ def operate_ptz_with_agent(args, actions, target_encoder, transform, target_pred
             state_batch = target_encoder(image.to(device))
             with torch.no_grad():
                 #next_state_values = target_predictor(state_batch, position_batch)
-                max_next_state_indices = target_predictor(state_batch, position_batch).max(1).indices.item()
+                # modified to find the minimum reward rather than maximum reward during inference phase
+                max_next_state_indices = target_predictor(state_batch, position_batch).min(1).indices.item()
                 #next_state_values = target_predictor(state_batch, position_batch).max(1).values
                 next_state_values = target_predictor(state_batch, position_batch)
                 # Apply softmax to convert to probabilities
