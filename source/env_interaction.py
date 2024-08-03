@@ -405,7 +405,7 @@ def operate_ptz_with_agent(args, actions, target_encoder, transform, target_pred
             print('next_state_values: ', next_state_values)
             print('probs: ', probs)
             #print('max_next_state_indices: ', max_next_state_indices)
-            if torch.rand([1]).item() > 0.9:
+            if torch.rand([1]).item() > 0.9999:
                 print('Sampled action')
                 print('sampled_indices: ', sampled_indices.item())
                 next_action = actions[sampled_indices.item()]
