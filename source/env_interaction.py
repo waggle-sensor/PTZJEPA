@@ -393,7 +393,7 @@ def operate_ptz_with_agent(args, actions, target_encoder, transform, target_pred
             with torch.no_grad():
                 #next_state_values = target_predictor(state_batch, position_batch)
                 # modified to find the minimum reward rather than maximum reward during inference phase
-                max_next_state_indices = target_predictor(state_batch, position_batch).min(1).indices.item()
+                max_next_state_indices = target_predictor(state_batch, position_batch).max(1).indices.item()
                 #next_state_values = target_predictor(state_batch, position_batch).max(1).values
                 next_state_values = target_predictor(state_batch, position_batch)
                 # Apply softmax to convert to probabilities
@@ -447,7 +447,7 @@ def operate_ptz_with_agent(args, actions, target_encoder, transform, target_pred
                 continue
             positions.append(grab_position(camera=Camera1, args=args))
             cmds.append(f"{pan:.2f},{tilt:.2f},{zoom:.2f}")
-            embeds.append(state_batch.detach().cpu())
+            embeds.append(torch.stack([state_batch.detach().cpu(), next_state_values.detach().cpu()]))
             last_image_path = img_path
         #publish_images()
         num_image += collect_images(args.keepimages)
