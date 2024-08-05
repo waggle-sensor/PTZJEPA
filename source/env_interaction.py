@@ -24,7 +24,7 @@ import numpy as np
 from source.datasets.ptz_dataset import get_position_datetime_from_labels
 from source.prepare_dataset import (
     collect_commands,
-    collect_embeds,
+    collect_embeds_rewards,
     collect_images,
     collect_positions,
     grab_image, grab_position,
@@ -380,6 +380,7 @@ def operate_ptz_with_agent(args, actions, target_encoder, transform, target_pred
         positions = [grab_position(camera=Camera1, args=args)]
         cmds = []
         embeds = []
+        rewards = []
         if first_image_path is None:
             first_image_path = img_path
         last_image_path = img_path
@@ -447,7 +448,8 @@ def operate_ptz_with_agent(args, actions, target_encoder, transform, target_pred
                 continue
             positions.append(grab_position(camera=Camera1, args=args))
             cmds.append(f"{pan:.2f},{tilt:.2f},{zoom:.2f}")
-            embeds.append(torch.stack([state_batch.detach().cpu(), next_state_values.detach().cpu()]))
+            embeds.append(state_batch.detach().cpu())
+            rewards.append(next_state_values.detach().cpu())
             last_image_path = img_path
         #publish_images()
         num_image += collect_images(args.keepimages)
@@ -459,7 +461,7 @@ def operate_ptz_with_agent(args, actions, target_encoder, transform, target_pred
             collect_commands(cmds, cur_time)
         
         if args.track_all:
-            collect_embeds(embeds, cur_time)
+            collect_embeds_rewards(embeds, rewards, cur_time)
     return [first_image_path, last_image_path], num_image
 
 def run(args, fname, mode):
