@@ -4,7 +4,6 @@ import datetime
 import gc
 import os
 from pathlib import Path
-import shutil
 import random
 import copy
 import logging
@@ -18,7 +17,7 @@ from torch.utils.data import DataLoader
 import numpy as np
 
 from source.prepare_dataset import change_ownership, detect_plateau, get_dirs
-from source.track_progress import initialize_model_info, read_file_lastline, save_model_info, update_progress
+from source.track_progress import cleanup_and_respawn, initialize_model_info, read_file_lastline, save_model_info, update_progress
 from source.utils.logging import (
     CSVLogger,
     gpu_timer,
@@ -882,9 +881,8 @@ def world_model(args, resume_preempt=False):
     end_time = datetime.datetime.now(tz=datetime.timezone.utc)
     save_model_info(model_name, parent_model_name, start_time, end_time, epoch - start_epoch, None)
     update_progress(model_name)
-    if finish_status and start_epoch == num_epochs:
-        PATH, FILE = os.path.split(latest_path)
-        shutil.rmtree(PATH)
+    if start_epoch == num_epochs:
+        cleanup_and_respawn(model_name, save_info=True, save_dir=persis_dir / "finished_models")
     return finish_status
 
 

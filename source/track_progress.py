@@ -4,6 +4,7 @@ import datetime
 import logging
 import os
 from pathlib import Path
+import shutil
 from typing import Union
 import yaml
 
@@ -189,3 +190,35 @@ def read_file_lastline(fpath: Path):
             f.seek(0)
         last_line = f.readline().decode()
     return last_line
+
+
+def cleanup_and_respawn(model_name: str, save_info=True, save_model=False, save_dir=None):
+    """
+    Cleans up the specified model directory and respawns a new model with the next generation ID.
+    Args:
+        model_name (str): The name of the model to be cleaned up and respawned.
+        save_info (bool, optional): Flag indicating whether to save the model information. Defaults to True.
+        save_model (bool, optional): Flag indicating whether to save the entire model directory. Defaults to False.
+        save_dir (str, optional): The directory where the cleaned up model will be saved. This must be a valid directory
+            path if save_info is True. Defaults to None.
+    """
+    
+    model_type, model_gen, model_id = model_name.split("_")
+    model_gen = int(model_gen)
+    model_id = int(model_id)
+    # model_type = "world_model" if is_world_model else "agent"
+    model_parent_dir = wm_dir if model_type == "wm" else ag_dir
+    model_dir = model_parent_dir / model_name
+    info_fpath = model_dir / "model_info.yaml"
+    logger.info("Cleaning up %s", model_name)
+    if save_info:
+        save_model_dir = save_dir / model_name
+        save_model_dir.mkdir(parents=True, exist_ok=True, mode=0o777)
+        if save_model:
+            shutil.copytree(model_dir, save_model_dir)
+        else:
+            shutil.copy(info_fpath, save_model_dir)
+    shutil.rmtree(model_dir)
+    # create a new model with next generation id
+    new_model_name = f"{model_type}_{model_gen+1:0>2}_{model_id:0>2}"
+    initialize_model_info(new_model_name)
