@@ -509,6 +509,7 @@ def agent_model(args, resume_preempt=False):
     loss_values = []
     start_time = datetime.datetime.now(tz=datetime.timezone.utc)
     finish_status = True
+    epoch = start_epoch
     for epoch in range(start_epoch, num_epochs):
         #dataloader = DataLoader(data, batch_size=batch_size, shuffle=True)
         logger.info('Epoch %d' % (epoch + 1))
@@ -562,9 +563,9 @@ def agent_model(args, resume_preempt=False):
             break
 
     end_time = datetime.datetime.now(tz=datetime.timezone.utc)
-    save_model_info(model_name, parent_model_name, start_time, end_time, epoch+1 - start_epoch, num_epochs)
+    save_model_info(model_name, parent_model_name, start_time, end_time, epoch - start_epoch, num_epochs)
     update_progress(model_name)
-    if epoch+1 == num_epochs:
+    if epoch+1 >= num_epochs:
         cleanup_and_respawn(model_name, save_info=True, save_model=False, save_dir=persis_dir / "finished_models")
     return finish_status
 
