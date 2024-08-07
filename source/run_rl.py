@@ -564,7 +564,7 @@ def agent_model(args, resume_preempt=False):
     end_time = datetime.datetime.now(tz=datetime.timezone.utc)
     save_model_info(model_name, parent_model_name, start_time, end_time, epoch+1 - start_epoch, num_epochs)
     update_progress(model_name)
-    if start_epoch+1 == num_epochs:
+    if epoch+1 == num_epochs:
         cleanup_and_respawn(model_name, save_info=True, save_model=False, save_dir=persis_dir / "finished_models")
     return finish_status
 
