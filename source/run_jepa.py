@@ -1023,13 +1023,19 @@ def dreamer(args, resume_preempt=False):
     wm_dir = persis_dir / "world_models"
     ag_dir = persis_dir / "agents"
     prog_file = persis_dir / "progress_model_names.txt"
-    # to generate dreams for a random model
-    model_name = random.sample(models, 1)[0]
     # model should be the last trained world model
     # last_line = read_file_lastline(prog_file)
     # model_name = last_line.split("@")[0].strip()
     # # this should be a model model
     # assert model_name.split("_")[0] == "wm", "Dreamer requires the last model to be a world model"
+    # * Need to make sure num_restart >= 0
+    wm_candid = []
+    for wm in wm_dir.glob("*"):
+        with open(wm / "model_info.yaml", 'r') as f:
+            info_dict = yaml.safe_load(f)
+        if info_dict["num_restart"] >= 0:
+            wm_candid.append(wm.name)
+    model_name = random.choice(wm_candid)
     model_dir = wm_dir / model_name
     with open(model_dir / "model_info.yaml", 'r') as f:
         info_dict = yaml.safe_load(f)
