@@ -127,7 +127,7 @@ def generate_embedding(
     with open(config_fpath, "r") as f:
         config = yaml.safe_load(f)
     # use_bfloat16 = config["meta"]["use_bfloat16"]
-    model_name = config["meta"]["model_name"]
+    model_arch = config["meta"]["model_arch"]
     pred_depth = config["meta"]["pred_depth"]
     pred_emb_dim = config["meta"]["pred_emb_dim"]
     patch_size = config["mask"]["patch_size"]  # patch-size for model training
@@ -144,7 +144,7 @@ def generate_embedding(
             crop_size=crop_size,
             pred_depth=pred_depth,
             pred_emb_dim=pred_emb_dim,
-            model_name=model_name,
+            model_arch=model_arch,
         )
     else:
         encoder, predictor = init_model(
@@ -153,7 +153,7 @@ def generate_embedding(
             crop_size=crop_size,
             pred_depth=pred_depth,
             pred_emb_dim=pred_emb_dim,
-            model_name=model_name,
+            model_arch=model_arch,
         )
     target_encoder = copy.deepcopy(encoder)
     checkpoint = torch.load(checkpoint_fpath, map_location=torch.device("cpu"))

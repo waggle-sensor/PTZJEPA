@@ -64,22 +64,29 @@ class ModelInfo:
 
 
 class WorldModelInfo(ModelInfo):
-    def __init__(self, root_dir, model_name):
+    def __init__(self, root_dir, model_name, is_finished=False):
         self.root_dir = Path(root_dir)
-        wm_dir = self.root_dir / "world_models"
         model_type_infer = model_name.split("_")[0]
         assert model_type_infer == "wm", f"Requires a world model (wm_*), but got {model_type_infer}"
-        super().__init__(wm_dir, model_name, self.root_dir / "collected_imgs")
+        if is_finished:
+            basedir = self.root_dir / "finished_models"
+        else:
+            basedir = self.root_dir / "world_models"
+        super().__init__(basedir, model_name, self.root_dir / "collected_imgs")
         self.model_path = self.model_dir / "jepa-latest.pt"
 
 
 class AgentInfo(ModelInfo):
-    def __init__(self, root_dir, model_name):
+    def __init__(self, root_dir, model_name, is_finished=False):
         self.root_dir = Path(root_dir)
-        ag_dir = self.root_dir / "agents"
         model_type_infer = model_name.split("_")[0]
         assert model_type_infer == "ag", f"Requires an agent (ag_*), but got {model_type_infer}"
-        super().__init__(ag_dir, model_name, self.root_dir / "collected_imgs")
+        if is_finished:
+            basedir = self.root_dir / "finished_models"
+        else:
+            # ag_dir = self.root_dir / "agents"
+            basedir = self.root_dir / "agents"
+        super().__init__(basedir, model_name, self.root_dir / "collected_imgs")
         self.data_acquire_iteration = []
         self._get_collected_timestamps()
         self.model_target_path = self.model_dir / "jepa-target_latest.pt"

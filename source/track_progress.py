@@ -209,7 +209,7 @@ def cleanup_and_respawn(model_name: str, save_info=True, save_model=False, save_
     # model_type = "world_model" if is_world_model else "agent"
     model_parent_dir = wm_dir if model_type == "wm" else ag_dir
     model_dir = model_parent_dir / model_name
-    info_fpath = model_dir / "model_info.yaml"
+    # info_fpath = model_dir / "model_info.yaml"
     logger.info("Cleaning up %s", model_name)
     if save_info:
         save_model_dir = save_dir / model_name
@@ -217,7 +217,11 @@ def cleanup_and_respawn(model_name: str, save_info=True, save_model=False, save_
         if save_model:
             shutil.copytree(model_dir, save_model_dir)
         else:
-            shutil.copy(info_fpath, save_model_dir)
+            # only save minial information, takes less disk space
+            shutil.copy(model_dir / "model_info.yaml", save_model_dir)
+            shutil.copy(model_dir / "params-ijepa.yaml", save_model_dir)
+            shutil.copy(model_dir / "jepa.csv", save_model_dir)
+            
     shutil.rmtree(model_dir)
     # create a new model with next generation id
     new_model_name = f"{model_type}_{model_gen+1:0>2}_{model_id:0>2}"
