@@ -215,13 +215,12 @@ def cleanup_and_respawn(model_name: str, save_info=True, save_model=False, save_
         save_model_dir = save_dir / model_name
         save_model_dir.mkdir(parents=True, exist_ok=True, mode=0o777)
         if save_model:
-            shutil.copytree(model_dir, save_model_dir)
+            shutil.copytree(model_dir, save_model_dir, dirs_exist_ok=True)
         else:
             # only save minial information, takes less disk space
             shutil.copy(model_dir / "model_info.yaml", save_model_dir)
             shutil.copy(model_dir / "params-ijepa.yaml", save_model_dir)
             shutil.copy(model_dir / "jepa.csv", save_model_dir)
-            
     shutil.rmtree(model_dir)
     # create a new model with next generation id
     new_model_name = f"{model_type}_{model_gen+1:0>2}_{model_id:0>2}"
