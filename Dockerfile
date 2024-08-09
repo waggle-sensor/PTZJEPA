@@ -9,7 +9,7 @@ FROM python:3.10.14-bullseye
 # https://docs.nvidia.com/deeplearning/frameworks/pytorch-release-notes/rel-24-03.html
 
 RUN apt-get update && apt-get install -y \
-    ffmpeg libsm6 libxext6 libhdf5-dev
+    ffmpeg libsm6 libxext6 libhdf5-dev redis-tools
 
 WORKDIR /app
 COPY requirements.txt requirements.txt
