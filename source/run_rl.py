@@ -2,15 +2,13 @@
 
 import datetime
 import os
-import shutil
 import random
 import copy
 import logging
 import yaml
 import pprint
-from source.track_progress import initialize_model_info, read_file_lastline, save_model_info, update_progress
+from source.track_progress import cleanup_and_respawn, initialize_model_info, read_file_lastline, save_model_info, update_progress
 import torch
-import torch.nn.functional as F
 #import torch.nn.SmoothL1Loss as S1L
 
 from torch.utils.data import DataLoader
@@ -214,12 +212,16 @@ def agent_model(args, resume_preempt=False):
         initialize_model_info(model_name)
     else:
         model_name = dirnames[idx[0]]
-        if loyal:
+        info_fpath = ag_dir / model_name / "model_info.yaml"
+        with open(info_fpath, "r") as f:
+            info_dict = yaml.safe_load(f)
+        if loyal and info_dict["restart_00"]["parent_model"] in wm_candid:
             # stick to the same model for this generation
-            info_fpath = ag_dir / model_name / "model_info.yaml"
-            with open(info_fpath, "r") as f:
-                info_dict = yaml.safe_load(f)
-            parent_model_name = info_dict["restart_00"]["parent_model"]            
+            # last generation's model is still alive
+            parent_model_name = info_dict["restart_00"]["parent_model"]
+        else:
+            # pick a random world model if not loyal or last generation model is finished
+            parent_model_name = random.choice(wm_candid)           
     dump = os.path.join(folder, model_name, 'params-agent.yaml')
     with open(dump, 'w') as f:
         yaml.safe_dump(args, f)
@@ -507,6 +509,7 @@ def agent_model(args, resume_preempt=False):
     loss_values = []
     start_time = datetime.datetime.now(tz=datetime.timezone.utc)
     finish_status = True
+    epoch = start_epoch
     for epoch in range(start_epoch, num_epochs):
         #dataloader = DataLoader(data, batch_size=batch_size, shuffle=True)
         logger.info('Epoch %d' % (epoch + 1))
@@ -562,12 +565,8 @@ def agent_model(args, resume_preempt=False):
     end_time = datetime.datetime.now(tz=datetime.timezone.utc)
     save_model_info(model_name, parent_model_name, start_time, end_time, epoch - start_epoch, num_epochs)
     update_progress(model_name)
-    if finish_status and start_epoch == num_epochs:
-        PATH, FILE = os.path.split(policy_latest_path)
-        shutil.rmtree(PATH)
-        PATH, FILE = os.path.split(target_latest_path)
-        shutil.rmtree(PATH)
-
+    if epoch+1 >= num_epochs:
+        cleanup_and_respawn(model_name, save_info=True, save_model=True, save_dir=persis_dir / "finished_models")
     return finish_status
 
 

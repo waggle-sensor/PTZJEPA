@@ -24,7 +24,7 @@ import numpy as np
 from source.datasets.ptz_dataset import get_position_datetime_from_labels
 from source.prepare_dataset import (
     collect_commands,
-    collect_embeds,
+    collect_embeds_rewards,
     collect_images,
     collect_positions,
     grab_image, grab_position,
@@ -63,6 +63,8 @@ def control_ptz(args, params, resume_preempt=False):
     # -- META
     use_bfloat16 = params['meta']['use_bfloat16']
     model_arch = params['meta']['agent_model_arch']
+    wm_model_arch = model_arch
+    agent_model_arch = model_arch
     load_model = params['meta']['load_checkpoint'] or resume_preempt
     r_file = params['meta']['read_checkpoint']
     pred_depth = params['meta']['pred_depth']
@@ -203,7 +205,7 @@ def control_ptz(args, params, resume_preempt=False):
         crop_size=crop_size,
         pred_depth=pred_depth,
         pred_emb_dim=pred_emb_dim,
-        model_arch=model_arch)
+        model_arch=wm_model_arch) # agent and world model are using the same encoder
 
     # -- make data transforms
     transform = make_transforms(
@@ -252,7 +254,7 @@ def control_ptz(args, params, resume_preempt=False):
         crop_size=crop_size,
         pred_depth=pred_depth,
         pred_emb_dim=pred_emb_dim,
-        model_arch=model_arch,
+        model_arch=agent_model_arch,
         num_actions=num_actions)
 
     for p in target_predictor.parameters():
@@ -378,6 +380,7 @@ def operate_ptz_with_agent(args, actions, target_encoder, transform, target_pred
         positions = [grab_position(camera=Camera1, args=args)]
         cmds = []
         embeds = []
+        rewards = []
         if first_image_path is None:
             first_image_path = img_path
         last_image_path = img_path
@@ -390,6 +393,7 @@ def operate_ptz_with_agent(args, actions, target_encoder, transform, target_pred
             state_batch = target_encoder(image.to(device))
             with torch.no_grad():
                 #next_state_values = target_predictor(state_batch, position_batch)
+                # modified to find the minimum reward rather than maximum reward during inference phase
                 max_next_state_indices = target_predictor(state_batch, position_batch).max(1).indices.item()
                 #next_state_values = target_predictor(state_batch, position_batch).max(1).values
                 next_state_values = target_predictor(state_batch, position_batch)
@@ -402,7 +406,7 @@ def operate_ptz_with_agent(args, actions, target_encoder, transform, target_pred
             print('next_state_values: ', next_state_values)
             print('probs: ', probs)
             #print('max_next_state_indices: ', max_next_state_indices)
-            if torch.rand([1]).item() > 0.9:
+            if torch.rand([1]).item() > 0.9999:
                 print('Sampled action')
                 print('sampled_indices: ', sampled_indices.item())
                 next_action = actions[sampled_indices.item()]
@@ -445,6 +449,7 @@ def operate_ptz_with_agent(args, actions, target_encoder, transform, target_pred
             positions.append(grab_position(camera=Camera1, args=args))
             cmds.append(f"{pan:.2f},{tilt:.2f},{zoom:.2f}")
             embeds.append(state_batch.detach().cpu())
+            rewards.append(next_state_values.detach().cpu())
             last_image_path = img_path
         #publish_images()
         num_image += collect_images(args.keepimages)
@@ -456,7 +461,7 @@ def operate_ptz_with_agent(args, actions, target_encoder, transform, target_pred
             collect_commands(cmds, cur_time)
         
         if args.track_all:
-            collect_embeds(embeds, cur_time)
+            collect_embeds_rewards(embeds, rewards, cur_time)
     return [first_image_path, last_image_path], num_image
 
 def run(args, fname, mode):

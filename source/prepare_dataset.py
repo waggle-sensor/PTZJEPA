@@ -1,6 +1,5 @@
 import logging
 from pathlib import Path
-import pickle
 from typing import List, Union
 import numpy as np
 import time
@@ -259,14 +258,16 @@ def collect_commands(commands: List[str], current_time: None):
     change_ownership(directory)
 
 
-def collect_embeds(embeds: List[Tensor], current_time: None):
+def collect_embeds_rewards(embeds: List[Tensor], rewards: List[Tensor], current_time: str):
     directory = persis_dir / "collected_embeds"
     directory.mkdir(exist_ok=True, mode=0o777, parents=True)
 
-    if current_time is None:
-        current_time = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S.%f")
-    fpath = directory / f"embeds_at_{current_time}.pt"
-    torch.save(torch.vstack(embeds), fpath)
+    # if current_time is None:
+    #     current_time = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S.%f")
+    embed_fpath = directory / f"embeds_at_{current_time}.pt"
+    torch.save(torch.vstack(embeds), embed_fpath)
+    reward_fpath = directory / f"rewards_at_{current_time}.pt"
+    torch.save(torch.vstack(rewards), reward_fpath)
     change_ownership(directory)
 
 

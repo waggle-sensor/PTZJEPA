@@ -4,7 +4,6 @@ import datetime
 import gc
 import os
 from pathlib import Path
-import shutil
 import random
 import copy
 import logging
@@ -18,7 +17,7 @@ from torch.utils.data import DataLoader
 import numpy as np
 
 from source.prepare_dataset import change_ownership, detect_plateau, get_dirs
-from source.track_progress import initialize_model_info, read_file_lastline, save_model_info, update_progress
+from source.track_progress import cleanup_and_respawn, initialize_model_info, read_file_lastline, save_model_info, update_progress
 from source.utils.logging import (
     CSVLogger,
     gpu_timer,
@@ -839,6 +838,7 @@ def world_model(args, resume_preempt=False):
     loss_values = []
     start_time = datetime.datetime.now(tz=datetime.timezone.utc)
     finish_status = True
+    epoch = start_epoch
     for epoch in range(start_epoch, num_epochs):
         logger.info('Epoch %d' % (epoch + 1))
 
@@ -882,9 +882,8 @@ def world_model(args, resume_preempt=False):
     end_time = datetime.datetime.now(tz=datetime.timezone.utc)
     save_model_info(model_name, parent_model_name, start_time, end_time, epoch - start_epoch, None)
     update_progress(model_name)
-    if finish_status and start_epoch == num_epochs:
-        PATH, FILE = os.path.split(latest_path)
-        shutil.rmtree(PATH)
+    if epoch+1 >= num_epochs:
+        cleanup_and_respawn(model_name, save_info=True, save_model=True, save_dir=persis_dir / "finished_models")
     return finish_status
 
 
@@ -1025,13 +1024,19 @@ def dreamer(args, resume_preempt=False):
     wm_dir = persis_dir / "world_models"
     ag_dir = persis_dir / "agents"
     prog_file = persis_dir / "progress_model_names.txt"
-    # to generate dreams for a random model
-    model_name = random.sample(models, 1)[0]
     # model should be the last trained world model
     # last_line = read_file_lastline(prog_file)
     # model_name = last_line.split("@")[0].strip()
     # # this should be a model model
     # assert model_name.split("_")[0] == "wm", "Dreamer requires the last model to be a world model"
+    # * Need to make sure num_restart >= 0
+    wm_candid = []
+    for wm in wm_dir.glob("*"):
+        with open(wm / "model_info.yaml", 'r') as f:
+            info_dict = yaml.safe_load(f)
+        if info_dict["num_restart"] >= 0:
+            wm_candid.append(wm.name)
+    model_name = random.choice(wm_candid)
     model_dir = wm_dir / model_name
     with open(model_dir / "model_info.yaml", 'r') as f:
         info_dict = yaml.safe_load(f)
