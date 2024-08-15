@@ -69,8 +69,8 @@ def forward_target(images, target_encoder):
 
 def forward_context(images, position1, position2, encoder, predictor,
                     camera_brand, return_rewards=False, change_position=True):
-    if change_position:
-        change_allocentric_position(position1, position2, camera_brand)
+    #if change_position:
+        #change_allocentric_position(position1, position2, camera_brand)
     encoder_z = encoder(images)
     pred_z, pred_r = predictor(encoder_z, position1, position2)
     if return_rewards:
@@ -803,9 +803,14 @@ def world_model(args, resume_preempt=False):
     def loss_fn(z, r, h, g):
         loss1 = F.smooth_l1_loss(z, h)
         loss2 = F.smooth_l1_loss(r, g.repeat(r.shape))# * 1e-4
+        #if random.random() > 0.95:
+            #Lambda = 0.05
+        #else:
+            #Lambda = 0.99
         #print('reward shape ', r.shape)
         #print('reward mean ', r.mean())
         #print('reward ', g)
+        #loss = Lambda*loss1 + (1.0-Lambda)*loss2
         loss = loss1 + loss2
         return loss
 
@@ -882,8 +887,8 @@ def world_model(args, resume_preempt=False):
     end_time = datetime.datetime.now(tz=datetime.timezone.utc)
     save_model_info(model_name, parent_model_name, start_time, end_time, epoch - start_epoch, None)
     update_progress(model_name)
-    if epoch+1 >= num_epochs:
-        cleanup_and_respawn(model_name, save_info=True, save_model=True, save_dir=persis_dir / "finished_models")
+    #if epoch+1 >= num_epochs:
+        #cleanup_and_respawn(model_name, save_info=True, save_model=True, save_dir=persis_dir / "finished_models")
     return finish_status
 
 
@@ -1036,6 +1041,7 @@ def dreamer(args, resume_preempt=False):
             info_dict = yaml.safe_load(f)
         if info_dict["num_restart"] >= 0:
             wm_candid.append(wm.name)
+ 
     model_name = random.choice(wm_candid)
     model_dir = wm_dir / model_name
     with open(model_dir / "model_info.yaml", 'r') as f:
@@ -1146,10 +1152,12 @@ def dreamer(args, resume_preempt=False):
         state_sequences = []
         position_sequences = []
         reward_sequences = []
+        delta_reward_sequences = []
         action_sequences = []
         # Step 1. Forward image through encoder
         internal_state = get_internal_representation(images)
         # Step 2. Iterate forwarding internal representations through the predictor
+        reward_memory = 0.0
         for step in range(dream_length):
             state_sequences.append(internal_state.unsqueeze(0))
             position_sequences.append(positions.unsqueeze(0))
@@ -1161,7 +1169,10 @@ def dreamer(args, resume_preempt=False):
             positions = next_positions
             reward = next_reward.squeeze(-1)
             reward = reward.mean(-1)
+            delta_reward = reward - reward_memory
+            reward_memory = reward
             reward_sequences.append(reward.unsqueeze(0))
+            delta_reward_sequences.append(delta_reward.unsqueeze(0))
             action_sequences.append(next_actions.unsqueeze(0))
 
         state_sequences.append(internal_state.unsqueeze(0))
@@ -1182,6 +1193,11 @@ def dreamer(args, resume_preempt=False):
         torch.cat(reward_sequences, out=aux)
         reward_sequences=aux
 
+        B = delta_reward.shape[0]
+        aux = torch.Tensor(len(delta_reward_sequences), B).to(device)
+        torch.cat(delta_reward_sequences, out=aux)
+        delta_reward_sequences=aux
+
         B = next_actions.shape[0]
         aux = torch.Tensor(len(action_sequences), B).to(device)
         torch.cat(action_sequences, out=aux)
@@ -1193,6 +1209,7 @@ def dreamer(args, resume_preempt=False):
                 'state_sequence': state_sequences[:,idx],
                 'position_sequence': position_sequences[:,idx],
                 'reward_sequence': reward_sequences[:,idx],
+                'delta_reward_sequence': delta_reward_sequences[:,idx],
                 'action_sequence': action_sequences[:,idx]
             }
             # to introduce randomness into dreams when overwriting old dreams
@@ -1261,7 +1278,7 @@ def dreamer(args, resume_preempt=False):
     # -- DREAM LOOP
     for itr, (imgs, poss) in enumerate(dataloader):
         # poss = get_position_from_label(labls)
-        change_allocentric_position(poss)
+        #change_allocentric_position(poss)
         imgs = imgs.to(device, non_blocking=True)
         poss = poss.to(device, non_blocking=True)
         

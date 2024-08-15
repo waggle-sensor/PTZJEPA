@@ -115,7 +115,8 @@ def agent_model(args, resume_preempt=False):
 
     # -- DREAMER
     dream_length = args['dreamer']['dream_length']
-    loyal = True # whether to loyal to one world model
+    loyal = False # whether to loyal to one world model
+    #loyal = True # whether to loyal to one world model
 
     # -- ACTIONS
     action_noop = args['action']['noop']
@@ -202,6 +203,7 @@ def agent_model(args, resume_preempt=False):
     for wm in wm_dir.glob("*"):
        if len(list(wm.glob("dream_*"))) > 0:
            wm_candid.append(wm.name)
+ 
     # pick a random parent model
     parent_model_name = random.choice(wm_candid)
     parent_model_dir = wm_dir / parent_model_name
@@ -274,7 +276,7 @@ def agent_model(args, resume_preempt=False):
         memory = ReplayMemory(size)
         for itr, episodes in enumerate(dataloader):
             print('episodes keys ', episodes.keys())
-            for state_sequence, position_sequence, reward_sequence, action_sequence in zip(episodes['state_sequence'], episodes['position_sequence'], episodes['reward_sequence'], episodes['action_sequence']):
+            for state_sequence, position_sequence, reward_sequence, action_sequence in zip(episodes['state_sequence'], episodes['position_sequence'], episodes['delta_reward_sequence'], episodes['action_sequence']):
                 for step, (state, position) in enumerate(zip(state_sequence, position_sequence)):
                     if step < action_sequence.shape[0]:
                         # pick next action
@@ -565,8 +567,8 @@ def agent_model(args, resume_preempt=False):
     end_time = datetime.datetime.now(tz=datetime.timezone.utc)
     save_model_info(model_name, parent_model_name, start_time, end_time, epoch - start_epoch, num_epochs)
     update_progress(model_name)
-    if epoch+1 >= num_epochs:
-        cleanup_and_respawn(model_name, save_info=True, save_model=True, save_dir=persis_dir / "finished_models")
+    #if epoch+1 >= num_epochs:
+        #cleanup_and_respawn(model_name, save_info=True, save_model=True, save_dir=persis_dir / "finished_models")
     return finish_status
 
 

@@ -57,8 +57,12 @@ def lifelong_learning(arguments):
     while True:
         prepare_images()
         training_complete = run_jepa(arguments.fname, "world_model")
+        #if training_complete:
+            #continue
         training_complete = run_jepa(arguments.fname, "dreamer")
         training_complete = run_rl(arguments.fname, "train_agent")
+        #if training_complete:
+            #continue
         interaction_complete = env_inter(arguments, arguments.fname, "navigate_env")
 
 
