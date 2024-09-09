@@ -59,8 +59,11 @@ optimization:
   - 0.0005
   - 0.00005
   ema:
-  - 0.85
+  - 0.8
   - 1.0
+  #ema:
+  #- 0.9
+  #- 1.0
   #ema:
   #- 0.996
   #- 1.0
@@ -95,20 +98,21 @@ plateau:
   #wm_threshold: 1.0
   wm_threshold: 0.01
   rl_patience: 10
-  rl_threshold: 0.01
+  rl_threshold: 0.001
+  #rl_threshold: 0.01
 memory:
-  #models: 1
-  models: 5
+  models: 1
+  #models: 5
   #memory_models: 1
   memory_models: 10
-  dreams: 50
+  dreams: 1
   #dreams: 15
   #dreams: 10
-  #rl_models: 1
-  rl_models: 5
+  rl_models: 1
+  #rl_models: 5
 dreamer:
   #number_of_dreams: 15
-  number_of_dreams: 20
+  number_of_dreams: 500
   dream_length: 10
 action:
   noop:

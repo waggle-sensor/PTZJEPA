@@ -1,6 +1,7 @@
 # this python script runs jepa
 
 import datetime
+import shutil
 import gc
 import os
 from pathlib import Path
@@ -742,8 +743,9 @@ def world_model(args, resume_preempt=False):
         with torch.no_grad():
             m = next(momentum_scheduler)
             for param_q, param_k in zip(encoder.parameters(), target_encoder.parameters()):
-                param_k.detach().data.mul_(m).add_((1.-m) * param_q.detach().data)
+                #param_k.detach().data.mul_(m).add_((1.-m) * param_q.detach().data)
                 #param_k.data.mul_(m).add_((1.-m) * param_q.detach().data)
+                param_k.data.mul_(m).add_((1.-m) * param_q.data)
 
         return (float(loss), _new_lr, _new_wd, grad_stats)
 
@@ -789,8 +791,9 @@ def world_model(args, resume_preempt=False):
         with torch.no_grad():
             m = next(momentum_scheduler)
             for param_q, param_k in zip(encoder.parameters(), target_encoder.parameters()):
-                param_k.detach().data.mul_(m).add_((1.-m) * param_q.detach().data)
+                #param_k.detach().data.mul_(m).add_((1.-m) * param_q.detach().data)
                 #param_k.data.mul_(m).add_((1.-m) * param_q.detach().data)
+                param_k.data.mul_(m).add_((1.-m) * param_q.data)
 
         return (float(loss), _new_lr, _new_wd, grad_stats)
 
@@ -1054,6 +1057,14 @@ def dreamer(args, resume_preempt=False):
     dream_dir = model_dir / dream_name
     dream_dir.mkdir(mode=0o777, exist_ok=True)
     dream_folder = str(dream_dir)
+
+    # After the first restart remove previous dreams
+    if restart_iter > 0:
+        prev_dream_name = f"dream_{restart_iter-1:0>2}"
+        prev_dream_dir = model_dir / prev_dream_name
+        shutil.rmtree(str(prev_dream_dir))
+        #prev_dream_dir.rmdir()
+
     # dream_ID='dream_'+str(torch.randint(memory_dreams, (1,)).item())
     # if not os.path.exists(os.path.join(dream_folder, dream_ID)):
     #     os.makedirs(os.path.join(dream_folder, dream_ID))
@@ -1170,6 +1181,7 @@ def dreamer(args, resume_preempt=False):
             reward = next_reward.squeeze(-1)
             reward = reward.mean(-1)
             delta_reward = reward - reward_memory
+            delta_reward = torch.where(delta_reward > 0.0, 1.0, -1.0)
             reward_memory = reward
             reward_sequences.append(reward.unsqueeze(0))
             delta_reward_sequences.append(delta_reward.unsqueeze(0))
