@@ -31,6 +31,7 @@ class PTZImageDataset(Dataset):
         self.positions, self.date_times = self._parse_labels()
         # sort the labels by datetime to ensure coherence
         sorted_idx = self.date_times.argsort()
+        np.random.shuffle(sorted_idx)
         self.img_labels[:] = [self.img_labels[i] for i in sorted_idx]
         self.positions = self.positions[sorted_idx]
         self.date_times = self.date_times[sorted_idx]

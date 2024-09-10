@@ -4,11 +4,13 @@
 import os
 import logging
 import argparse
+import subprocess
 
 from source.prepare_dataset import get_images_from_storage, prepare_images, operate_ptz
 from source.run_jepa import run as run_jepa
 from source.run_rl import run as run_rl
 from source.env_interaction import run as env_inter
+from source.utils.redis_cli import SSHFSMounter, SSHFSMounter_1, SSHFSMounter_2, SSHFSMounter_3
 
 
 logger = logging.getLogger(__name__)
@@ -53,6 +55,7 @@ def environment_interaction(arguments):
 
 
 def lifelong_learning(arguments):
+
     operate_ptz(arguments)
     while True:
         prepare_images()
@@ -177,6 +180,63 @@ def main():
     logging.basicConfig(level=log_level)
     os.environ["CUDA_VISIBLE_DEVICES"] = str(0)
 
+    #host_username = 'waggle'
+    #host_ip = '130.202.23.67' 
+    #host_data_directory = '/home/waggle/dario/world_models'
+    #local_data_directory = '/persistence/world_models/'
+    ##local_data_directory = '/home/waggle/dario/JEPA_Persistence/world_models/'
+
+    mounter = SSHFSMounter_3(
+        host_username='waggle',
+        host_ip='130.202.23.67',
+        host_data_directory='/home/waggle/dario/world_models',
+        local_data_directory='/persistence/world_models/',
+        password='why1not2'  # Replace with actual password
+    )
+
+    print('mounter: ', mounter)
+
+    print('---------------------')
+    print('Mounting ...')
+    mounter.mount()
+    print('Mounted!')
+    print('---------------------')
+
+    #mount_command = f'sshfs {host_username}@{host_ip}:{host_data_directory} {local_data_directory}'
+    #print('mount_command: ', mount_command)
+    #subprocess.call(mount_command, shell=True)
+    #print('mounted!')
+    # Do your stuff with mounted folder
+    #unmount_command = f'fusermount -u  {local_data_directory}'
+    #print('unmount_command: ', unmount_command)
+    #subprocess.call(unmount_command, shell=True)
+    #print('unmounted!')
+
+
+
+    #command_args = ['sshfs', f'{host_username}@{host_ip}:{host_data_directory}', f'{local_data_directory}']
+
+    #proc = subprocess.Popen(command_args, 
+                            #stdin=subprocess.PIPE, 
+                            #stdout=subprocess.PIPE, 
+                            #stderr=subprocess.PIPE)
+
+    #proc.stdin.write(b'yes\nwhy1not2\n')
+    ##proc.stdin.flush()
+
+    #stdout, stderr = proc.communicate()
+    #print('--------->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>')
+    #print('--------->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>')
+    #print('--------->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>')
+    #print(stdout)
+    #print(stderr)
+    #print('--------->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>')
+    #print('--------->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>')
+    #print('--------->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>')
+
+
+
+
     if args.run_mode == "train":
         pretraining_wrapper(args)
     elif args.run_mode == "world_model_train":
@@ -191,6 +251,12 @@ def main():
         lifelong_learning(args)
 
     logger.info("DONE!")
+    print('---------------------')
+    print('UN-Mounting ...')
+    mounter.unmount()
+    print('UN-Mounted!')
+    print('---------------------')
+
 
 
 if __name__ == "__main__":

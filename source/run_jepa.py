@@ -12,6 +12,11 @@ import pprint
 import torch
 import torch.nn.functional as F
 
+import redis
+import time
+import uuid
+import sys
+
 from torch.utils.data import DataLoader
 
 import numpy as np
@@ -33,6 +38,7 @@ from source.transforms import make_transforms
 
 from source.datasets.ptz_dataset import PTZImageDataset
 
+from source.utils.redis_cli import MultiLockerSystem
 # --
 #log_timings = True
 log_freq = 10
@@ -526,11 +532,29 @@ def world_model(args, resume_preempt=False):
     # -- MEMORY
     memory_models = args['memory']['models']
 
+    redis_host='130.202.23.67'
+    redis_port='6379'
+    redis_password='your_strong_password'
+    num_lockers=memory_models
+    time.sleep(10)
+    locker_system = MultiLockerSystem(redis_host, redis_port, redis_password, "file_lockers", num_lockers)
+    print('locker_system ', locker_system)
+
     if not os.path.exists(folder):
         os.makedirs(folder)
         change_ownership(folder)
+
     persis_dir, coll_dir, tmp_dir = get_dirs()
-    model_id = np.random.randint(memory_models)
+    acquired_locker = None
+    print('acquired_locker ', acquired_locker)
+    while acquired_locker is None:
+        model_id = np.random.randint(memory_models)
+        acquired_locker = locker_system.acquire_locker(model_id)
+        print('model_id ', model_id)
+        print('acquired_locker ', acquired_locker)
+        if acquired_locker is not None:
+            print(f"Process 1 acquired locker {acquired_locker}")
+
     torch.manual_seed(model_id)
     wm_dir = persis_dir / "world_models"
     dirnames = [d.name for d in wm_dir.iterdir() if d.is_dir()]
@@ -887,6 +911,9 @@ def world_model(args, resume_preempt=False):
     end_time = datetime.datetime.now(tz=datetime.timezone.utc)
     save_model_info(model_name, parent_model_name, start_time, end_time, epoch - start_epoch, None)
     update_progress(model_name)
+    locker_system.release_locker(acquired_locker)
+    print(f"Process 1 released locker {acquired_locker}")
+
     #if epoch+1 >= num_epochs:
         #cleanup_and_respawn(model_name, save_info=True, save_model=True, save_dir=persis_dir / "finished_models")
     return finish_status
