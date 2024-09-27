@@ -186,21 +186,21 @@ def main():
     #local_data_directory = '/persistence/world_models/'
     ##local_data_directory = '/home/waggle/dario/JEPA_Persistence/world_models/'
 
-    mounter = SSHFSMounter_3(
-        host_username='waggle',
-        host_ip='130.202.23.67',
-        host_data_directory='/home/waggle/dario/world_models',
-        local_data_directory='/persistence/world_models/',
-        password='why1not2'  # Replace with actual password
-    )
+    #mounter = SSHFSMounter_3(
+        #host_username='waggle',
+        #host_ip='130.202.23.67',
+        #host_data_directory='/home/waggle/dario/world_models',
+        #local_data_directory='/persistence/world_models/',
+        #password='why1not2'  # Replace with actual password
+    #)
 
-    print('mounter: ', mounter)
+#    print('mounter: ', mounter)
 
-    print('---------------------')
-    print('Mounting ...')
-    mounter.mount()
-    print('Mounted!')
-    print('---------------------')
+    #print('---------------------')
+    #print('Mounting ...')
+    #mounter.mount()
+    #print('Mounted!')
+    #print('---------------------')
 
     #mount_command = f'sshfs {host_username}@{host_ip}:{host_data_directory} {local_data_directory}'
     #print('mount_command: ', mount_command)
@@ -251,11 +251,11 @@ def main():
         lifelong_learning(args)
 
     logger.info("DONE!")
-    print('---------------------')
-    print('UN-Mounting ...')
-    mounter.unmount()
-    print('UN-Mounted!')
-    print('---------------------')
+    #print('---------------------')
+    #print('UN-Mounting ...')
+    #mounter.unmount()
+    #print('UN-Mounted!')
+    #print('---------------------')
 
 
 

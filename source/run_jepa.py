@@ -1041,7 +1041,16 @@ def dreamer(args, resume_preempt=False):
 
     # -- MEMORY
     memory_dreams = args['memory']['dreams']
+    memory_models = args['memory']['models']
 
+
+    redis_host='130.202.23.67'
+    redis_port='6379'
+    redis_password='your_strong_password'
+    num_lockers=memory_models
+    time.sleep(10)
+    locker_system = MultiLockerSystem(redis_host, redis_port, redis_password, "file_lockers", num_lockers)
+    print('locker_system ', locker_system)
 
     
     if not os.path.exists(folder):
@@ -1069,11 +1078,34 @@ def dreamer(args, resume_preempt=False):
         if info_dict["num_restart"] >= 0:
             wm_candid.append(wm.name)
  
-    model_name = random.choice(wm_candid)
+    ########################################################################
+    ########################################################################
+    ########################################################################
+    acquired_locker = None
+    print('acquired_locker ', acquired_locker)
+    while acquired_locker is None:
+        model_name = random.choice(wm_candid)
+        model_id = int(model_name.split('_')[-1])
+        #model_id = np.random.randint(memory_models)
+        acquired_locker = locker_system.acquire_locker(model_id)
+        print('model_id ', model_id)
+        print('acquired_locker ', acquired_locker)
+        if acquired_locker is not None:
+            print(f"Process 1 acquired locker {acquired_locker}")
+    ########################################################################
+    ########################################################################
+    ########################################################################
+
+    #model_name = random.choice(wm_candid)
     model_dir = wm_dir / model_name
     with open(model_dir / "model_info.yaml", 'r') as f:
         info_dict = yaml.safe_load(f)
     restart_iter = info_dict["num_restart"]
+
+    print('wm_candid ', wm_candid)
+    print('model_name ', model_name)
+    print('type(model_name) ', type(model_name))
+
     # start the dream sequence with 0
     # dream_seq = len(list(model_dir.glob(f"dream_{restart_iter:0>2}_*")))
     # dream_name = f"dream_{restart_iter:0>2}_{dream_seq:0>2}"
@@ -1090,7 +1122,7 @@ def dreamer(args, resume_preempt=False):
     # with open(dump, 'w') as f:
     #     yaml.safe_dump(args, f)
     # ----------------------------------------------------------------------- #
-    
+ 
     # -- log/checkpointing paths
     log_file = os.path.join(folder, model_name, f'{tag}.csv')
     save_path = os.path.join(folder, model_name, f'{tag}' + '-ep{epoch}.pt')
@@ -1314,6 +1346,10 @@ def dreamer(args, resume_preempt=False):
             break
 
     update_progress(model_name)
+
+    locker_system.release_locker(acquired_locker)
+    print(f"Process 1 released locker {acquired_locker}")
+
     return True
 
 

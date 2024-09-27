@@ -98,6 +98,7 @@ plateau:
   rl_threshold: 0.01
 memory:
   #models: 1
+  #models: 2
   models: 5
   #memory_models: 1
   memory_models: 10
